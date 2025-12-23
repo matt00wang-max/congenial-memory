@@ -468,27 +468,61 @@
         <div class="start-screen" id="startScreen">
             <h1>🧟 ZOMBIE SHOOTER 🧟</h1>
             <h2>Tower Defense Edition!</h2>
-            <div class="controls-info">
-                <strong style="color: #3498db;">-- Combat --</strong><br>
-                <span>WASD</span> - Move | <span>Mouse</span> - Aim | <span>Left Click</span> - Shoot<br>
-                <span>Right Click</span> - Throw Grenade | <span>R</span> - Reload<br>
-                <span>1-4</span> - Switch Weapons | <span>Space</span> - Dash<br><br>
-                <strong style="color: #2ecc71;">-- Building --</strong><br>
-                <span>Q</span> - Wall (50🪙) | <span>E</span> - Turret (150🪙)<br>
-                <span>F</span> - Slow Trap (75🪙) | <span>G</span> - Heal Station (200🪙)<br><br>
-                <strong style="color: #9b59b6;">-- Vehicles --</strong><br>
-                <span>Z</span> - Tank (300🪙) | <span>X</span> - Helicopter (400🪙) | <span>C</span> - Truck (200🪙)<br><br>
-                <strong style="color: #e74c3c;">-- Enemy Types --</strong><br>
-                <span style="color: #2ecc71;">Normal</span> - Standard zombie<br>
-                <span style="color: #e74c3c;">Fast</span> - Quick but fragile<br>
-                <span style="color: #8e44ad;">Tank</span> - Slow but tough<br>
-                <span style="color: #f39c12;">Exploder</span> - Explodes on death!<br>
-                <span style="color: #1abc9c;">Spitter</span> - Shoots acid from range<br>
-                <span style="color: #795548;">Crawler</span> - Very fast, small target<br>
-                <span style="color: #9c27b0;">Necromancer</span> - Summons zombies<br>
-                <span style="color: #1a237e;">Giant</span> - Boss with stomp attack<br><br>
-                <em style="color: #888;">Kill zombies to earn resources!</em>
+            <div class="controls-info" style="display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; max-width: 900px;">
+                <div style="flex: 1; min-width: 280px;">
+                    <strong style="color: #3498db;">-- Controls --</strong><br>
+                    <span>WASD</span> - Move | <span>Mouse</span> - Aim<br>
+                    <span>Left Click</span> - Shoot | <span>Right Click</span> - Grenade<br>
+                    <span>R</span> - Reload | <span>Space</span> - Dash<br>
+                    <span>1-9, 0, -, =</span> - Switch Weapons<br>
+                    <span>Mouse Wheel</span> - Cycle Weapons<br><br>
+                    <strong style="color: #2ecc71;">-- Building --</strong><br>
+                    <span>Q</span> - Wall | <span>E</span> - Turret<br>
+                    <span>F</span> - Slow Trap | <span>G</span> - Heal Station<br><br>
+                    <strong style="color: #9b59b6;">-- Vehicles --</strong><br>
+                    <span>Z</span> - Tank | <span>X</span> - Helicopter | <span>C</span> - Truck
+                </div>
+                <div style="flex: 1; min-width: 280px;">
+                    <strong style="color: #f39c12;">-- Arsenal (15 Weapons) --</strong><br>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2px; font-size: 11px; margin-top: 5px;">
+                        <span style="color: #95a5a6;">1. Pistol</span>
+                        <span style="color: #e74c3c;">2. Shotgun</span>
+                        <span style="color: #3498db;">3. Rifle</span>
+                        <span style="color: #e67e22;">4. SMG</span>
+                        <span style="color: #9b59b6;">5. Minigun</span>
+                        <span style="color: #c0392b;">6. Bazooka 💥</span>
+                        <span style="color: #00ff00;">7. Laser Gun ⚡</span>
+                        <span style="color: #ff6600;">8. Flamethrower 🔥</span>
+                        <span style="color: #00ffff;">9. Railgun ⚡</span>
+                        <span style="color: #2ecc71;">0. Grenade Launcher 💥</span>
+                        <span style="color: #8b4513;">-. Crossbow 🩸</span>
+                        <span style="color: #ff00ff;">=. Plasma Cannon 💥</span>
+                    </div>
+                    <div style="font-size: 10px; margin-top: 5px; color: #888;">
+                        + Freeze Ray ❄️ | Double Barrel | Revolver
+                    </div>
+                </div>
+                <div style="flex: 1; min-width: 280px;">
+                    <strong style="color: #e74c3c;">-- Enemy Types --</strong><br>
+                    <div style="font-size: 11px;">
+                        <span style="color: #2ecc71;">Normal</span> - Standard |
+                        <span style="color: #e74c3c;">Fast</span> - Quick<br>
+                        <span style="color: #8e44ad;">Tank</span> - Tough |
+                        <span style="color: #f39c12;">Exploder</span> - Boom!<br>
+                        <span style="color: #1abc9c;">Spitter</span> - Acid |
+                        <span style="color: #795548;">Crawler</span> - Tiny<br>
+                        <span style="color: #9c27b0;">Necro</span> - Summons |
+                        <span style="color: #1a237e;">Giant</span> - Boss<br>
+                        <span style="color: #ff5722;">Bomber</span> - Suicide |
+                        <span style="color: #4caf50;">Charger</span> - Rush<br>
+                        <span style="color: #e91e63;">Screamer</span> - Buffs |
+                        <span style="color: #607d8b;">Brute</span> - Destroyer<br>
+                        <span style="color: #b0bec5;">Ghost</span> - Phases |
+                        <span style="color: #ffeb3b;">Splitter</span> - Divides
+                    </div>
+                </div>
             </div>
+            <em style="color: #888; margin-top: 10px; display: block;">Kill zombies to earn coins! Build defenses! Survive the waves!</em>
             <button class="start-btn" onclick="startGame()">START GAME</button>
         </div>
 
@@ -2328,8 +2362,8 @@
                 }
 
                 // Keep in bounds
-                tank.x = Math.max(40, Math.min(canvas.width - 40, tank.x));
-                tank.y = Math.max(30, Math.min(canvas.height - 30, tank.y));
+                tank.x = Math.max(40, Math.min(WORLD_WIDTH - 40, tank.x));
+                tank.y = Math.max(30, Math.min(WORLD_HEIGHT - 30, tank.y));
             });
 
             // Update helicopters
@@ -2377,8 +2411,8 @@
                     }
                 }
 
-                heli.x = Math.max(30, Math.min(canvas.width - 30, heli.x));
-                heli.y = Math.max(20, Math.min(canvas.height - 20, heli.y));
+                heli.x = Math.max(30, Math.min(WORLD_WIDTH - 30, heli.x));
+                heli.y = Math.max(20, Math.min(WORLD_HEIGHT - 20, heli.y));
             });
 
             // Update trucks
@@ -2431,8 +2465,8 @@
                     }
                 }
 
-                truck.x = Math.max(40, Math.min(canvas.width - 40, truck.x));
-                truck.y = Math.max(25, Math.min(canvas.height - 25, truck.y));
+                truck.x = Math.max(40, Math.min(WORLD_WIDTH - 40, truck.x));
+                truck.y = Math.max(25, Math.min(WORLD_HEIGHT - 25, truck.y));
             });
 
             // Update vehicle bullets
@@ -2918,7 +2952,7 @@
                 }
 
                 // Explode at end of life or out of bounds
-                if (rocket.life <= 0 || rocket.x < 0 || rocket.x > canvas.width || rocket.y < 0 || rocket.y > canvas.height) {
+                if (rocket.life <= 0 || rocket.x < 0 || rocket.x > WORLD_WIDTH || rocket.y < 0 || rocket.y > WORLD_HEIGHT) {
                     playSound('explosion');
                     createExplosion(rocket.x, rocket.y, rocket.explosionRadius, rocket.damage);
                     return false;
@@ -3697,8 +3731,8 @@
                 }
 
                 return acid.life > 0 &&
-                       acid.x > 0 && acid.x < canvas.width &&
-                       acid.y > 0 && acid.y < canvas.height;
+                       acid.x > 0 && acid.x < WORLD_WIDTH &&
+                       acid.y > 0 && acid.y < WORLD_HEIGHT;
             });
 
             // Update turrets
@@ -3706,6 +3740,62 @@
 
             // Update vehicles
             updateVehicles();
+
+            // Filter out destroyed structures
+            walls = walls.filter(w => {
+                if (w.health <= 0) {
+                    // Destruction particles
+                    for (let i = 0; i < 10; i++) {
+                        particles.push({
+                            x: w.x, y: w.y,
+                            vx: (Math.random() - 0.5) * 8,
+                            vy: (Math.random() - 0.5) * 8,
+                            life: 30, color: '#7f8c8d', size: 8
+                        });
+                    }
+                    return false;
+                }
+                return true;
+            });
+
+            turrets = turrets.filter(t => {
+                if (t.health <= 0) {
+                    for (let i = 0; i < 12; i++) {
+                        particles.push({
+                            x: t.x, y: t.y,
+                            vx: (Math.random() - 0.5) * 10,
+                            vy: (Math.random() - 0.5) * 10,
+                            life: 30, color: '#34495e', size: 8
+                        });
+                    }
+                    return false;
+                }
+                return true;
+            });
+
+            tanks = tanks.filter(t => {
+                if (t.health <= 0) {
+                    createExplosion(t.x, t.y, 60, 30);
+                    return false;
+                }
+                return true;
+            });
+
+            helicopters = helicopters.filter(h => {
+                if (h.health <= 0) {
+                    createExplosion(h.x, h.y, 50, 25);
+                    return false;
+                }
+                return true;
+            });
+
+            trucks = trucks.filter(t => {
+                if (t.health <= 0) {
+                    createExplosion(t.x, t.y, 70, 40);
+                    return false;
+                }
+                return true;
+            });
 
             // Update particles
             particles = particles.filter(p => {
