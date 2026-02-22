@@ -32,9 +32,13 @@ canvas { display: block; }
 .inv-slot .ammo { font-size: 10px; color: #aaa; }
 #zone-warning { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #e74c3c; font-size: 28px; font-weight: bold; text-shadow: 2px 2px 6px #000; z-index: 10; pointer-events: none; opacity: 0; transition: opacity 0.3s; }
 #crate-prompt { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%); color: #fff; font-size: 16px; font-weight: bold; text-shadow: 2px 2px 4px #000; z-index: 10; pointer-events: none; opacity: 0; transition: opacity 0.2s; background: rgba(0,0,0,0.5); padding: 8px 18px; border-radius: 8px; }
-#game-over { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 100; color: #fff; }
+#game-over { position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 100; color: #fff; }
 #game-over h1 { font-size: 52px; margin-bottom: 10px; }
-#game-over .stats { font-size: 20px; color: #aaa; margin-bottom: 30px; text-align: center; line-height: 1.8; }
+#game-over .stats { font-size: 18px; color: #aaa; margin-bottom: 30px; text-align: center; line-height: 2; }
+#game-over .grade-display { font-size: 80px; font-weight: bold; margin: 10px 0 15px; text-shadow: 0 0 30px currentColor; }
+#game-over .stat-row { display: flex; justify-content: space-between; width: 320px; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.1); }
+#game-over .stat-label { color: #aaa; }
+#game-over .stat-value { color: #fff; font-weight: bold; }
 #game-over button { padding: 14px 40px; font-size: 20px; background: #e74c3c; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
 #game-over button:hover { background: #c0392b; }
 #start-screen { position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; color: #fff; }
@@ -55,6 +59,9 @@ canvas { display: block; }
 .held-item { position: fixed; pointer-events: none; background: rgba(243,156,18,0.9); border: 2px solid #f39c12; border-radius: 4px; color: #fff; padding: 4px; font-size: 11px; font-weight: bold; z-index: 200; text-align: center; }
 #backpack-ui .close-btn { position: absolute; top: 10px; right: 15px; color: #e74c3c; font-size: 24px; cursor: pointer; font-weight: bold; }
 #backpack-ui .close-btn:hover { color: #fff; }
+#quest-tracker { position: fixed; top: 100px; left: 15px; z-index: 10; pointer-events: none; }
+.quest-item { background: rgba(0,0,0,0.6); color: #fff; font-size: 12px; padding: 5px 10px; margin-bottom: 4px; border-radius: 4px; border-left: 3px solid #888; }
+.quest-item.done { opacity: 0.5; border-left-color: #2ecc71; text-decoration: line-through; }
 </style>
 </head>
 <body>
@@ -82,7 +89,8 @@ canvas { display: block; }
 </div>
 <div id="kill-feed"></div>
 <div id="inventory"></div>
-<div id="zone-warning">OUTSIDE THE ZONE!</div>
+<div id="zone-warning">RETREAT ZONE</div>
+<div id="quest-tracker"></div>
 <div id="crate-prompt"></div>
 
 <div id="game-over">
@@ -109,17 +117,21 @@ canvas { display: block; }
     Click to jump from the plane and choose your landing spot!<br>
     WASD - Move &nbsp;|&nbsp; Mouse - Aim &nbsp;|&nbsp; Click - Shoot / Punch Crates<br>
     E - Open/Close Doors &amp; Pick Up Loot &nbsp;|&nbsp; 1/2/3 - Switch Weapons &nbsp;|&nbsp; R - Reload<br>
-    F - Melee Punch &nbsp;|&nbsp; G - Throw Grenade &nbsp;|&nbsp; B - Use Bandage<br>
+    F - Melee Punch &nbsp;|&nbsp; G - Throw Grenade &nbsp;|&nbsp; B - Use Bandage &nbsp;|&nbsp; V - Use Syringe<br>
     <span style="color:#e74c3c">Body Parts:</span> Shots hit random body parts!
     Head/Chest = critical &nbsp;|&nbsp; Legs = slow &nbsp;|&nbsp; Arms = can't shoot<br>
     <span style="color:#ff6666">Bleeding</span> drains HP every 10s - use Bandage [B] or Medkit to stop<br>
+    <span style="color:#00d4ff">Syringe</span> - Instantly heals 50 HP (rare - metal crates &amp; airdrops only)<br>
     <span style="color:#3878bb">Armor Levels:</span> Lv1/Lv2/Lv3 - higher = more protection<br>
     <span style="color:#c8a85c">Wooden Crates</span> - Punch open &nbsp;|&nbsp;
     <span style="color:#8899aa">Metal Crates</span> - Need Crowbar &nbsp;|&nbsp;
     <span style="color:#ff4500">Flare Gun</span> - Calls in an Airdrop with premium loot!<br>
     <span style="color:#D2691E">Backpacks</span> - Higher level = more inventory space (Lv0: 20 slots, Lv3: 56 slots)<br>
     <span style="color:#27ae60">Grenades</span> - Max 9 in grenade slot | Items take 1-15 slots based on size<br>
-    <span style="color:#f1c40f">Each gun uses its own ammo type!</span>
+    <span style="color:#f1c40f">Each gun uses its own ammo type!</span><br>
+    <span style="color:#2ecc71">RETREAT ZONE</span> - Marked on map from the start! Survive 30 seconds inside to extract with a grade (F to SUPER)!<br>
+    <span style="color:#f39c12">QUESTS</span> - Complete quests to boost your grade! Turn Valves, Drill a Bank Vault, Find a Keycard [E to interact]<br>
+    <span style="color:#e67e22">VEHICLES</span> - Buggies, Trucks &amp; ATVs spawn on the map! [E] Enter/Exit | WASD to drive | Run over enemies!
   </div>
   <button onclick="startGame()">DROP IN</button>
 </div>
@@ -198,6 +210,9 @@ const AMMO_COLORS = { '9mm':'#f1c40f', 'shells':'#e67e22', '5.56':'#9b59b6', '.3
 let game, player, bots, buildings, crates, loot, bullets, particles, zone, keys, mouse, killFeed;
 let trees, rocks, bushes, roads, grenades, flares, airdrops;
 let plane, dropPhase; // plane drop system
+let retreatZone; // retreat zone system
+let quests; // quest system
+let vehicles; // vehicle system
 
 // ─── Helpers ───
 function dist(a,b) { return Math.sqrt((a.x-b.x)**2+(a.y-b.y)**2); }
@@ -240,6 +255,12 @@ function initGame() {
   }
   if (document.getElementById('crate-prompt')) {
     document.getElementById('crate-prompt').style.opacity = '0';
+  }
+  if (document.getElementById('heal-bar-container')) {
+    document.getElementById('heal-bar-container').classList.remove('active');
+  }
+  if (document.getElementById('quest-tracker')) {
+    document.getElementById('quest-tracker').innerHTML = '';
   }
 
   buildings = [];
@@ -319,8 +340,27 @@ function initGame() {
     x:MAP_SIZE/2, y:MAP_SIZE/2, r:MAP_SIZE*0.7,
     targetX:MAP_SIZE/2, targetY:MAP_SIZE/2, targetR:MAP_SIZE*0.7,
     shrinkStart:0, shrinkDuration:15000, phase:0,
-    nextShrink:20000, damage:1
+    nextShrink:20000, damage:0
   };
+
+  // Retreat zone - survive 5 minutes inside to extract
+  const retreatAngle = Math.random() * Math.PI * 2;
+  const retreatDist = MAP_SIZE * 0.25 + Math.random() * MAP_SIZE * 0.15;
+  retreatZone = {
+    x: MAP_SIZE/2 + Math.cos(retreatAngle) * retreatDist,
+    y: MAP_SIZE/2 + Math.sin(retreatAngle) * retreatDist,
+    r: 600, // radius of retreat zone
+    timer: 0, // time spent inside (ms)
+    required: 30000, // 30 seconds
+    active: true, // visible from the start
+    extracted: false
+  };
+
+  // ── Quest system ──
+  initQuests();
+
+  // ── Vehicle system ──
+  initVehicles();
 
   // ── Plane drop system ──
   // Plane flies across the map on a random path
@@ -979,8 +1019,27 @@ function spawnAirdrop(x, y) {
   }
 
   // Ensure coordinates are within map bounds
-  const safeX = Math.max(100, Math.min(MAP_SIZE - 100, x));
-  const safeY = Math.max(100, Math.min(MAP_SIZE - 100, y));
+  let safeX = Math.max(100, Math.min(MAP_SIZE - 100, x));
+  let safeY = Math.max(100, Math.min(MAP_SIZE - 100, y));
+
+  // Push airdrop out of buildings so it's always reachable
+  for (const b of buildings) {
+    if (safeX > b.x - 20 && safeX < b.x + b.w + 20 && safeY > b.y - 20 && safeY < b.y + b.h + 20) {
+      // Find nearest edge to push to
+      const distLeft = Math.abs(safeX - b.x);
+      const distRight = Math.abs(safeX - (b.x + b.w));
+      const distTop = Math.abs(safeY - b.y);
+      const distBottom = Math.abs(safeY - (b.y + b.h));
+      const minDist = Math.min(distLeft, distRight, distTop, distBottom);
+      if (minDist === distLeft) safeX = b.x - 40;
+      else if (minDist === distRight) safeX = b.x + b.w + 40;
+      else if (minDist === distTop) safeY = b.y - 40;
+      else safeY = b.y + b.h + 40;
+      safeX = Math.max(100, Math.min(MAP_SIZE - 100, safeX));
+      safeY = Math.max(100, Math.min(MAP_SIZE - 100, safeY));
+      break;
+    }
+  }
 
   const total = AIRDROP_WEIGHTS.reduce((a,b)=>a+b,0);
   // Pick 2-3 items for the airdrop
@@ -1614,11 +1673,9 @@ function updateBot(bot, dt) {
     }
   }
 
-  const outsideZone = dist(bot, zone) > zone.r;
-  const distToZoneEdge = dist(bot, zone) - zone.r;
-  const zoneShrinking = zone.r > zone.targetR;
-  const distToTargetZone = Math.sqrt((bot.x - zone.targetX)**2 + (bot.y - zone.targetY)**2) - zone.targetR;
-  const shouldMoveToZone = zoneShrinking && distToTargetZone > 50;
+  const outsideZone = false; // No more damage zone
+  const distToZoneEdge = 0;
+  const shouldMoveToZone = false;
 
   // ── Find enemies ──
   let nearestEnemy = null, nearestDist = Infinity;
@@ -1858,30 +1915,29 @@ function punchCrateBot(bot, c) {
 // ─── Updates ───
 function updateZone(dt) {
   game.time+=dt;
-  if(game.time>zone.nextShrink&&zone.phase<6){
-    zone.phase++;
-    zone.targetR=zone.r*0.6;
-    zone.targetX=MAP_SIZE/2+(Math.random()-.5)*MAP_SIZE*0.3*(1-zone.phase/6);
-    zone.targetY=MAP_SIZE/2+(Math.random()-.5)*MAP_SIZE*0.3*(1-zone.phase/6);
-    zone.shrinkStart=game.time;
-    zone.nextShrink=game.time+25000+zone.phase*5000;
-    zone.damage=1+zone.phase*0.5;
-  }
-  if(zone.r>zone.targetR){
-    zone.r+=(zone.targetR-zone.r)*0.002;
-    zone.x+=(zone.targetX-zone.x)*0.002;
-    zone.y+=(zone.targetY-zone.y)*0.002;
-  }
-  if(player.alive&&!player.dropping&&dist(player,zone)>zone.r){
-    player.hp-=zone.damage*dt/1000;
-    document.getElementById('zone-warning').style.opacity='1';
-    if(player.hp<=0){player.hp=0;player.alive=false;}
-  } else document.getElementById('zone-warning').style.opacity='0';
-  for(const bot of bots){
-    if(bot.alive&&!bot.dropping&&dist(bot,zone)>zone.r){
-      bot.hp-=zone.damage*dt/1000;
-      if(bot.hp<=0){bot.hp=0;bot.alive=false;addKillFeed('Zone',bot.name);}
+
+  // Check if player is inside retreat zone
+  if (retreatZone.active && player.alive && !player.dropping && !retreatZone.extracted) {
+    const inRetreat = dist(player, retreatZone) < retreatZone.r;
+    if (inRetreat) {
+      retreatZone.timer += dt;
+      document.getElementById('zone-warning').style.opacity = '1';
+      const remaining = Math.max(0, retreatZone.required - retreatZone.timer);
+      const secs = Math.ceil(remaining / 1000);
+      document.getElementById('zone-warning').textContent = `RETREAT ZONE - ${secs}s remaining`;
+      document.getElementById('zone-warning').style.color = '#2ecc71';
+
+      // Survived 30 seconds - extract!
+      if (retreatZone.timer >= retreatZone.required) {
+        retreatZone.extracted = true;
+        showScoreboard(true);
+        return;
+      }
+    } else {
+      document.getElementById('zone-warning').style.opacity = '0';
     }
+  } else {
+    document.getElementById('zone-warning').style.opacity = '0';
   }
 }
 
@@ -1900,6 +1956,18 @@ function updateBullets() {
       for(const bot of bots){
         if(b.owner===bot||!bot.alive||bot.dropping)continue;
         if((b.x-bot.x)**2+(b.y-bot.y)**2<bot.r*bot.r){damageEntity(bot,b.damage,b.owner);dead=true;break;}
+      }
+    }
+    // Hit vehicles
+    if(!dead){
+      for(const vh of vehicles){
+        if(vh.destroyed)continue;
+        if(Math.abs(b.x-vh.x)<vh.w/2+5&&Math.abs(b.y-vh.y)<vh.h/2+5){
+          vh.hp-=b.damage;
+          dead=true;
+          for(let p=0;p<3;p++) particles.push({x:b.x,y:b.y,vx:(Math.random()-.5)*3,vy:(Math.random()-.5)*3,life:10,maxLife:10,color:'#ff0',r:2});
+          break;
+        }
       }
     }
     if(!dead){ bullets[writeIdx++]=b; }
@@ -2546,6 +2614,749 @@ document.addEventListener('click', (e) => {
   }
 });
 
+// ─── Quest System ───
+function getInnerPos() {
+  // Random position in inner 40% of map
+  const margin = MAP_SIZE * 0.3;
+  return {
+    x: margin + Math.random() * (MAP_SIZE - margin * 2),
+    y: margin + Math.random() * (MAP_SIZE - margin * 2)
+  };
+}
+
+function getInnerBuilding() {
+  const margin = MAP_SIZE * 0.3;
+  const inner = buildings.filter(b =>
+    b.x > margin && b.x + b.w < MAP_SIZE - margin &&
+    b.y > margin && b.y + b.h < MAP_SIZE - margin &&
+    b.w >= 160 && b.h >= 160 // needs to be a decent size
+  );
+  return inner.length > 0 ? inner[Math.floor(Math.random() * inner.length)] : null;
+}
+
+function initQuests() {
+  quests = [];
+  player.hasKeycard = false;
+  player.questInteracting = null; // which quest the player is currently interacting with
+  player.questProgress = 0;
+
+  // 1. Valve Quest — 4 valves around a central point
+  const valvePos = getInnerPos();
+  const valves = [];
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2 + (Math.random() - 0.5) * 0.3;
+    const d = 40 + Math.random() * 30;
+    valves.push({
+      x: valvePos.x + Math.cos(a) * d,
+      y: valvePos.y + Math.sin(a) * d,
+      activated: false
+    });
+  }
+  quests.push({
+    type: 'valves', name: 'Turn 4 Valves',
+    x: valvePos.x, y: valvePos.y,
+    color: '#e74c3c', icon: '\u2699',
+    objects: valves,
+    holdTime: 2000, // 2s per valve
+    completed: false, scoreBonus: 25
+  });
+
+  // 2. Bank Drill Quest — drill a vault inside a building
+  const bankBuilding = getInnerBuilding();
+  if (bankBuilding) {
+    bankBuilding.isBank = true;
+    const vaultX = bankBuilding.x + bankBuilding.w / 2;
+    const vaultY = bankBuilding.y + bankBuilding.h / 2;
+    quests.push({
+      type: 'drill', name: 'Drill the Vault',
+      x: vaultX, y: vaultY,
+      buildingRef: bankBuilding,
+      color: '#f1c40f', icon: '\u{1F4B0}',
+      objects: [{ x: vaultX, y: vaultY, drilled: false }],
+      holdTime: 5000, // 5s hold
+      completed: false, scoreBonus: 35
+    });
+  }
+
+  // 3. Keycard Quest — find keycard, use at terminal
+  const keycardPos = getInnerPos();
+  // Terminal at a different inner location
+  let terminalPos = getInnerPos();
+  // Ensure they're at least 1500px apart
+  while (dist(keycardPos, terminalPos) < 1500) {
+    terminalPos = getInnerPos();
+  }
+  quests.push({
+    type: 'keycard', name: 'Keycard Access',
+    x: terminalPos.x, y: terminalPos.y,
+    color: '#00d4ff', icon: '\u{1F4B3}',
+    objects: [
+      { x: keycardPos.x, y: keycardPos.y, type: 'card', pickedUp: false },
+      { x: terminalPos.x, y: terminalPos.y, type: 'terminal', activated: false }
+    ],
+    holdTime: 0, // instant
+    completed: false, scoreBonus: 30
+  });
+}
+
+function updateQuests(dt) {
+  if (!quests) return;
+  const now = performance.now();
+  if (!player.alive || player.dropping) return;
+
+  for (const q of quests) {
+    if (q.completed) continue;
+
+    if (q.type === 'valves') {
+      // Check each valve
+      let allDone = true;
+      for (const v of q.objects) {
+        if (v.activated) continue;
+        allDone = false;
+        if (dist(player, v) < 40 && keys['e']) {
+          if (player.questInteracting !== v) {
+            player.questInteracting = v;
+            player.questProgress = 0;
+          }
+          player.questProgress += dt;
+          if (player.questProgress >= q.holdTime) {
+            v.activated = true;
+            player.questInteracting = null;
+            player.questProgress = 0;
+            // Particles
+            for (let i = 0; i < 10; i++) particles.push({
+              x: v.x, y: v.y, vx: (Math.random() - .5) * 4, vy: (Math.random() - .5) * 4,
+              life: 20, maxLife: 20, color: '#2ecc71', r: 3
+            });
+          }
+        } else if (player.questInteracting === v) {
+          player.questInteracting = null;
+          player.questProgress = 0;
+        }
+      }
+      if (allDone) {
+        q.completed = true;
+        addKillFeed('QUEST', 'Valves Complete!');
+      }
+    }
+    else if (q.type === 'drill') {
+      const vault = q.objects[0];
+      if (!vault.drilled && dist(player, vault) < 45 && keys['e']) {
+        if (player.questInteracting !== vault) {
+          player.questInteracting = vault;
+          player.questProgress = 0;
+        }
+        player.questProgress += dt;
+        // Drill sparks
+        if (Math.random() < 0.3) particles.push({
+          x: vault.x + rng(-8, 8), y: vault.y + rng(-8, 8),
+          vx: rng(-3, 3), vy: rng(-3, 3),
+          life: 10, maxLife: 10, color: '#f1c40f', r: 2
+        });
+        if (player.questProgress >= q.holdTime) {
+          vault.drilled = true;
+          q.completed = true;
+          player.questInteracting = null;
+          player.questProgress = 0;
+          addKillFeed('QUEST', 'Vault Drilled!');
+          for (let i = 0; i < 15; i++) particles.push({
+            x: vault.x, y: vault.y, vx: (Math.random() - .5) * 5, vy: (Math.random() - .5) * 5,
+            life: 25, maxLife: 25, color: '#f1c40f', r: 4
+          });
+        }
+      } else if (player.questInteracting === vault) {
+        player.questInteracting = null;
+        player.questProgress = 0;
+      }
+    }
+    else if (q.type === 'keycard') {
+      const card = q.objects[0];
+      const terminal = q.objects[1];
+      // Keycard pickup
+      if (!card.pickedUp && dist(player, card) < 30 && keys['e']) {
+        card.pickedUp = true;
+        player.hasKeycard = true;
+        addKillFeed('QUEST', 'Keycard Found!');
+        for (let i = 0; i < 8; i++) particles.push({
+          x: card.x, y: card.y, vx: (Math.random() - .5) * 4, vy: (Math.random() - .5) * 4,
+          life: 15, maxLife: 15, color: '#00d4ff', r: 3
+        });
+      }
+      // Terminal use
+      if (!terminal.activated && player.hasKeycard && dist(player, terminal) < 40 && keys['e']) {
+        terminal.activated = true;
+        q.completed = true;
+        addKillFeed('QUEST', 'Terminal Accessed!');
+        for (let i = 0; i < 12; i++) particles.push({
+          x: terminal.x, y: terminal.y, vx: (Math.random() - .5) * 5, vy: (Math.random() - .5) * 5,
+          life: 20, maxLife: 20, color: '#00d4ff', r: 4
+        });
+      }
+    }
+  }
+}
+
+function renderQuests(camX, camY) {
+  if (!quests) return;
+  const now = performance.now();
+
+  for (const q of quests) {
+    // Valve quest
+    if (q.type === 'valves') {
+      for (const v of q.objects) {
+        if (v.x < camX - 40 || v.x > camX + canvas.width + 40 || v.y < camY - 40 || v.y > camY + canvas.height + 40) continue;
+        ctx.save(); ctx.translate(v.x, v.y);
+        // Valve base
+        ctx.fillStyle = v.activated ? '#2ecc71' : '#e74c3c';
+        ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = v.activated ? '#27ae60' : '#c0392b';
+        ctx.lineWidth = 2; ctx.stroke();
+        // Valve spokes
+        const spinAngle = v.activated ? 0 : (now / 1000);
+        for (let i = 0; i < 4; i++) {
+          const a = spinAngle + (i / 4) * Math.PI * 2;
+          ctx.strokeStyle = v.activated ? '#fff' : '#ddd';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          ctx.lineTo(Math.cos(a) * 9, Math.sin(a) * 9);
+          ctx.stroke();
+        }
+        // Center dot
+        ctx.fillStyle = '#333';
+        ctx.beginPath(); ctx.arc(0, 0, 3, 0, Math.PI * 2); ctx.fill();
+        // Label
+        if (!v.activated) {
+          ctx.fillStyle = '#fff'; ctx.font = 'bold 9px Arial'; ctx.textAlign = 'center';
+          ctx.fillText('[E]', 0, 22); ctx.textAlign = 'left';
+        }
+        ctx.restore();
+      }
+      // Progress bar if interacting with a valve
+      if (!q.completed && player.questInteracting && q.objects.includes(player.questInteracting)) {
+        const v = player.questInteracting;
+        const pct = player.questProgress / q.holdTime;
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(v.x - 20, v.y - 28, 40, 6);
+        ctx.fillStyle = '#2ecc71';
+        ctx.fillRect(v.x - 20, v.y - 28, 40 * pct, 6);
+      }
+    }
+    // Drill quest
+    else if (q.type === 'drill') {
+      const vault = q.objects[0];
+      if (vault.x < camX - 50 || vault.x > camX + canvas.width + 50 || vault.y < camY - 50 || vault.y > camY + canvas.height + 50) continue;
+      ctx.save(); ctx.translate(vault.x, vault.y);
+      if (!vault.drilled) {
+        // Vault door
+        ctx.fillStyle = '#555';
+        ctx.fillRect(-18, -18, 36, 36);
+        ctx.strokeStyle = '#888'; ctx.lineWidth = 3;
+        ctx.strokeRect(-18, -18, 36, 36);
+        // Vault circle
+        ctx.strokeStyle = '#aaa'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(0, 0, 10, 0, Math.PI * 2); ctx.stroke();
+        // Vault handle
+        ctx.strokeStyle = '#f1c40f'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(0, 0, 6, -0.5, 1.5); ctx.stroke();
+        // Label
+        ctx.fillStyle = '#f1c40f'; ctx.font = 'bold 9px Arial'; ctx.textAlign = 'center';
+        ctx.fillText('VAULT [E]', 0, 30); ctx.textAlign = 'left';
+        // Bank label above building
+        if (q.buildingRef) {
+          ctx.fillStyle = '#f1c40f'; ctx.font = 'bold 14px Arial'; ctx.textAlign = 'center';
+          ctx.fillText('\u{1F3E6} BANK', 0, -26); ctx.textAlign = 'left';
+        }
+      } else {
+        // Drilled vault (open)
+        ctx.fillStyle = '#333';
+        ctx.fillRect(-18, -18, 36, 36);
+        ctx.strokeStyle = '#2ecc71'; ctx.lineWidth = 2;
+        ctx.strokeRect(-18, -18, 36, 36);
+        ctx.fillStyle = '#2ecc71'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center';
+        ctx.fillText('\u2713', 0, 4); ctx.textAlign = 'left';
+      }
+      ctx.restore();
+      // Drill progress bar
+      if (!vault.drilled && player.questInteracting === vault) {
+        const pct = player.questProgress / q.holdTime;
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(vault.x - 25, vault.y - 35, 50, 7);
+        ctx.fillStyle = '#f1c40f';
+        ctx.fillRect(vault.x - 25, vault.y - 35, 50 * pct, 7);
+        ctx.fillStyle = '#fff'; ctx.font = '8px Arial'; ctx.textAlign = 'center';
+        ctx.fillText('DRILLING...', vault.x, vault.y - 38); ctx.textAlign = 'left';
+      }
+    }
+    // Keycard quest
+    else if (q.type === 'keycard') {
+      const card = q.objects[0];
+      const terminal = q.objects[1];
+      // Keycard on ground
+      if (!card.pickedUp) {
+        if (card.x > camX - 40 && card.x < camX + canvas.width + 40 && card.y > camY - 40 && card.y < camY + canvas.height + 40) {
+          ctx.save(); ctx.translate(card.x, card.y);
+          const glow = 0.6 + Math.sin(now / 300) * 0.3;
+          ctx.globalAlpha = glow;
+          ctx.shadowBlur = 12; ctx.shadowColor = '#00d4ff';
+          ctx.fillStyle = '#00d4ff';
+          ctx.fillRect(-8, -5, 16, 10);
+          ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
+          ctx.strokeRect(-8, -5, 16, 10);
+          // Chip on card
+          ctx.fillStyle = '#f1c40f';
+          ctx.fillRect(-5, -2, 5, 4);
+          ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+          ctx.fillStyle = '#fff'; ctx.font = 'bold 9px Arial'; ctx.textAlign = 'center';
+          ctx.fillText('KEYCARD [E]', 0, 16); ctx.textAlign = 'left';
+          ctx.restore();
+        }
+      }
+      // Terminal
+      if (!terminal.activated) {
+        if (terminal.x > camX - 40 && terminal.x < camX + canvas.width + 40 && terminal.y > camY - 40 && terminal.y < camY + canvas.height + 40) {
+          ctx.save(); ctx.translate(terminal.x, terminal.y);
+          // Terminal box
+          ctx.fillStyle = '#1a1a2e';
+          ctx.fillRect(-14, -14, 28, 28);
+          ctx.strokeStyle = player.hasKeycard ? '#00d4ff' : '#555';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(-14, -14, 28, 28);
+          // Screen
+          const screenColor = player.hasKeycard ? '#00d4ff' : '#333';
+          ctx.fillStyle = screenColor;
+          ctx.fillRect(-10, -10, 20, 14);
+          // Card slot
+          ctx.fillStyle = '#444';
+          ctx.fillRect(-6, 6, 12, 4);
+          // Blink if player has keycard
+          if (player.hasKeycard) {
+            const blink = Math.sin(now / 200) > 0;
+            ctx.fillStyle = blink ? '#00ff88' : '#00d4ff';
+            ctx.beginPath(); ctx.arc(0, -3, 3, 0, Math.PI * 2); ctx.fill();
+          }
+          ctx.fillStyle = player.hasKeycard ? '#00d4ff' : '#666';
+          ctx.font = 'bold 9px Arial'; ctx.textAlign = 'center';
+          ctx.fillText(player.hasKeycard ? 'USE [E]' : 'LOCKED', 0, 26); ctx.textAlign = 'left';
+          ctx.restore();
+        }
+      } else {
+        // Completed terminal
+        if (terminal.x > camX - 40 && terminal.x < camX + canvas.width + 40 && terminal.y > camY - 40 && terminal.y < camY + canvas.height + 40) {
+          ctx.save(); ctx.translate(terminal.x, terminal.y);
+          ctx.fillStyle = '#1a1a2e';
+          ctx.fillRect(-14, -14, 28, 28);
+          ctx.strokeStyle = '#2ecc71'; ctx.lineWidth = 2;
+          ctx.strokeRect(-14, -14, 28, 28);
+          ctx.fillStyle = '#2ecc71'; ctx.font = 'bold 12px Arial'; ctx.textAlign = 'center';
+          ctx.fillText('\u2713', 0, 4); ctx.textAlign = 'left';
+          ctx.restore();
+        }
+      }
+    }
+  }
+}
+
+function renderQuestsMinimap(sc) {
+  if (!quests) return;
+  for (const q of quests) {
+    if (q.completed) {
+      miniCtx.fillStyle = 'rgba(46,204,113,0.6)';
+    } else {
+      miniCtx.fillStyle = q.color;
+    }
+    miniCtx.beginPath();
+    miniCtx.arc(q.x * sc, q.y * sc, q.completed ? 2 : 3, 0, Math.PI * 2);
+    miniCtx.fill();
+    // For keycard, also show the card location
+    if (q.type === 'keycard' && !q.completed) {
+      const card = q.objects[0];
+      if (!card.pickedUp) {
+        miniCtx.fillStyle = '#00d4ff';
+        miniCtx.beginPath();
+        miniCtx.arc(card.x * sc, card.y * sc, 2, 0, Math.PI * 2);
+        miniCtx.fill();
+      }
+    }
+  }
+}
+
+// ─── Vehicle System ───
+const VEHICLE_TYPES = {
+  buggy: { name: 'Buggy', maxSpeed: 8, accel: 0.15, turnSpeed: 0.04, hp: 150, w: 36, h: 22, color: '#e67e22', brakeForce: 0.08 },
+  truck: { name: 'Truck', maxSpeed: 5, accel: 0.08, turnSpeed: 0.025, hp: 300, w: 48, h: 28, color: '#7f8c8d', brakeForce: 0.06 },
+  atv:   { name: 'ATV',   maxSpeed: 10, accel: 0.2, turnSpeed: 0.055, hp: 100, w: 28, h: 18, color: '#2ecc71', brakeForce: 0.1 }
+};
+
+function initVehicles() {
+  vehicles = [];
+  player.inVehicle = null;
+
+  const types = ['buggy', 'truck', 'atv'];
+  for (let i = 0; i < 10; i++) {
+    const typeKey = types[i % 3];
+    const vt = VEHICLE_TYPES[typeKey];
+    // Spawn near roads or open areas
+    const pos = getRandomOpenPos();
+    vehicles.push({
+      x: pos.x, y: pos.y,
+      angle: Math.random() * Math.PI * 2,
+      speed: 0,
+      maxSpeed: vt.maxSpeed,
+      accel: vt.accel,
+      turnSpeed: vt.turnSpeed,
+      brakeForce: vt.brakeForce,
+      hp: vt.hp, maxHp: vt.hp,
+      w: vt.w, h: vt.h,
+      color: vt.color,
+      name: vt.name,
+      type: typeKey,
+      passenger: null,
+      destroyed: false
+    });
+  }
+}
+
+function getNearestVehicle(entity, maxDist) {
+  let best = null, bestDist = maxDist;
+  for (const v of vehicles) {
+    if (v.destroyed || v.passenger) continue;
+    const d = dist(entity, v);
+    if (d < bestDist) { bestDist = d; best = v; }
+  }
+  return best;
+}
+
+function enterVehicle(entity, vehicle) {
+  vehicle.passenger = entity;
+  entity.inVehicle = vehicle;
+}
+
+function exitVehicle(entity) {
+  const v = entity.inVehicle;
+  if (!v) return;
+  // Place entity next to vehicle
+  const exitAngle = v.angle + Math.PI / 2;
+  entity.x = v.x + Math.cos(exitAngle) * (v.w / 2 + 20);
+  entity.y = v.y + Math.sin(exitAngle) * (v.h / 2 + 20);
+  entity.x = Math.max(entity.r, Math.min(MAP_SIZE - entity.r, entity.x));
+  entity.y = Math.max(entity.r, Math.min(MAP_SIZE - entity.r, entity.y));
+  v.passenger = null;
+  entity.inVehicle = null;
+  v.speed *= 0.3; // vehicle slows when you exit
+}
+
+function updateVehicles(dt) {
+  for (const v of vehicles) {
+    if (v.destroyed) continue;
+
+    // Apply friction
+    v.speed *= 0.97;
+    if (Math.abs(v.speed) < 0.05) v.speed = 0;
+
+    // Move vehicle
+    if (Math.abs(v.speed) > 0) {
+      v.x += Math.cos(v.angle) * v.speed;
+      v.y += Math.sin(v.angle) * v.speed;
+
+      // Building collision
+      for (const b of buildings) {
+        if (v.x < b.x - v.w || v.x > b.x + b.w + v.w || v.y < b.y - v.h || v.y > b.y + b.h + v.h) continue;
+        // Simple AABB overlap check
+        const halfW = v.w / 2, halfH = v.h / 2;
+        const cx = v.x, cy = v.y;
+        const nearX = Math.max(b.x, Math.min(cx, b.x + b.w));
+        const nearY = Math.max(b.y, Math.min(cy, b.y + b.h));
+        const ddx = cx - nearX, ddy = cy - nearY;
+        const dd = Math.sqrt(ddx * ddx + ddy * ddy);
+        if (dd < halfW && dd > 0) {
+          v.x += (ddx / dd) * (halfW - dd);
+          v.y += (ddy / dd) * (halfW - dd);
+          v.speed *= -0.3; // bounce back
+          v.hp -= Math.abs(v.speed) * 3;
+        }
+      }
+
+      // Tree collision
+      for (const t of trees) {
+        if (Math.abs(v.x - t.x) > 40 || Math.abs(v.y - t.y) > 40) continue;
+        const d = dist(v, t);
+        if (d < v.w / 2 + 5) {
+          const a = Math.atan2(v.y - t.y, v.x - t.x);
+          v.x += Math.cos(a) * 2;
+          v.y += Math.sin(a) * 2;
+          v.speed *= 0.5;
+        }
+      }
+
+      // Rock collision
+      for (const r of rocks) {
+        if (Math.abs(v.x - r.x) > 30 || Math.abs(v.y - r.y) > 30) continue;
+        const d = dist(v, r);
+        if (d < v.w / 2 + r.r * 0.5) {
+          const a = Math.atan2(v.y - r.y, v.x - r.x);
+          v.x += Math.cos(a) * 2;
+          v.y += Math.sin(a) * 2;
+          v.speed *= 0.6;
+        }
+      }
+
+      // Map bounds
+      v.x = Math.max(v.w, Math.min(MAP_SIZE - v.w, v.x));
+      v.y = Math.max(v.h, Math.min(MAP_SIZE - v.h, v.y));
+    }
+
+    // Run over bots
+    if (Math.abs(v.speed) > 2 && v.passenger) {
+      for (const bot of bots) {
+        if (!bot.alive || bot.dropping) continue;
+        if (dist(v, bot) < v.w / 2 + bot.r) {
+          const runDamage = Math.abs(v.speed) * 8;
+          damageEntity(bot, runDamage, v.passenger);
+          // Knockback
+          const a = Math.atan2(bot.y - v.y, bot.x - v.x);
+          bot.x += Math.cos(a) * 15;
+          bot.y += Math.sin(a) * 15;
+          for (let i = 0; i < 8; i++) particles.push({
+            x: bot.x, y: bot.y, vx: (Math.random() - .5) * 5, vy: (Math.random() - .5) * 5,
+            life: 15, maxLife: 15, color: '#e74c3c', r: 3
+          });
+        }
+      }
+      // Run over player (from a driverless rolling vehicle — edge case)
+      if (v.passenger !== player && player.alive && !player.dropping && !player.inVehicle) {
+        if (dist(v, player) < v.w / 2 + player.r) {
+          const runDamage = Math.abs(v.speed) * 8;
+          damageEntity(player, runDamage, v.passenger);
+          const a = Math.atan2(player.y - v.y, player.x - v.x);
+          player.x += Math.cos(a) * 15;
+          player.y += Math.sin(a) * 15;
+        }
+      }
+    }
+
+    // Keep passenger position synced
+    if (v.passenger) {
+      v.passenger.x = v.x;
+      v.passenger.y = v.y;
+      v.passenger.angle = v.angle;
+    }
+
+    // Vehicle destroyed
+    if (v.hp <= 0 && !v.destroyed) {
+      v.destroyed = true;
+      v.speed = 0;
+      if (v.passenger) {
+        const p = v.passenger;
+        exitVehicle(p);
+        damageEntity(p, 30, null); // explosion damage
+      }
+      // Explosion
+      for (let i = 0; i < 25; i++) {
+        const a = Math.random() * Math.PI * 2;
+        particles.push({
+          x: v.x, y: v.y,
+          vx: Math.cos(a) * (2 + Math.random() * 5), vy: Math.sin(a) * (2 + Math.random() * 5),
+          life: 30 + Math.random() * 20, maxLife: 50,
+          color: ['#ff4500', '#ff6600', '#ffaa00', '#333'][Math.floor(Math.random() * 4)],
+          r: 4 + Math.random() * 4
+        });
+      }
+    }
+  }
+}
+
+function renderVehicles(camX, camY) {
+  const now = performance.now();
+  for (const v of vehicles) {
+    if (v.x < camX - 60 || v.x > camX + canvas.width + 60 || v.y < camY - 60 || v.y > camY + canvas.height + 60) continue;
+    ctx.save();
+    ctx.translate(v.x, v.y);
+    ctx.rotate(v.angle);
+
+    if (v.destroyed) {
+      // Burnt wreck
+      ctx.fillStyle = '#333';
+      ctx.fillRect(-v.w / 2, -v.h / 2, v.w, v.h);
+      ctx.strokeStyle = '#222'; ctx.lineWidth = 2;
+      ctx.strokeRect(-v.w / 2, -v.h / 2, v.w, v.h);
+      // Smoke
+      if (Math.random() < 0.05) particles.push({
+        x: v.x + rng(-5, 5), y: v.y + rng(-5, 5),
+        vx: rng(-0.5, 0.5), vy: -0.5 - Math.random(),
+        life: 30, maxLife: 30, color: '#555', r: 3
+      });
+    } else {
+      // Vehicle body
+      ctx.fillStyle = v.color;
+      ctx.fillRect(-v.w / 2, -v.h / 2, v.w, v.h);
+      // Outline
+      ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 2;
+      ctx.strokeRect(-v.w / 2, -v.h / 2, v.w, v.h);
+      // Windshield
+      ctx.fillStyle = 'rgba(150,200,255,0.4)';
+      ctx.fillRect(v.w / 2 - 8, -v.h / 2 + 3, 6, v.h - 6);
+      // Wheels (4 corners)
+      ctx.fillStyle = '#222';
+      const ww = 6, wh = 4;
+      ctx.fillRect(-v.w / 2 - 1, -v.h / 2 - 2, ww, wh);
+      ctx.fillRect(-v.w / 2 - 1, v.h / 2 - 2, ww, wh);
+      ctx.fillRect(v.w / 2 - 5, -v.h / 2 - 2, ww, wh);
+      ctx.fillRect(v.w / 2 - 5, v.h / 2 - 2, ww, wh);
+      // Headlights
+      ctx.fillStyle = '#ff0';
+      ctx.fillRect(v.w / 2 - 2, -v.h / 2 + 2, 3, 3);
+      ctx.fillRect(v.w / 2 - 2, v.h / 2 - 5, 3, 3);
+
+      // HP bar if damaged
+      if (v.hp < v.maxHp) {
+        ctx.rotate(-v.angle); // unrotate for horizontal bar
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(-20, -v.h / 2 - 12, 40, 5);
+        ctx.fillStyle = v.hp > v.maxHp * 0.5 ? '#2ecc71' : v.hp > v.maxHp * 0.25 ? '#f39c12' : '#e74c3c';
+        ctx.fillRect(-20, -v.h / 2 - 12, 40 * (v.hp / v.maxHp), 5);
+      }
+
+      // Enter prompt
+      if (!v.passenger && player.alive && dist(player, v) < 50 && !player.inVehicle) {
+        ctx.rotate(-v.angle);
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center';
+        ctx.fillText(`[E] ${v.name}`, 0, v.h / 2 + 16);
+        ctx.textAlign = 'left';
+      }
+    }
+    ctx.restore();
+  }
+}
+
+function renderVehiclesMinimap(sc) {
+  for (const v of vehicles) {
+    if (v.destroyed) {
+      miniCtx.fillStyle = '#555';
+    } else if (v.passenger === player) {
+      miniCtx.fillStyle = '#f1c40f';
+    } else {
+      miniCtx.fillStyle = v.color;
+    }
+    miniCtx.save();
+    miniCtx.translate(v.x * sc, v.y * sc);
+    miniCtx.rotate(v.angle);
+    miniCtx.fillRect(-3, -2, 6, 4);
+    miniCtx.restore();
+  }
+}
+
+// ─── Equipment Rarity Scoring ───
+const EQUIPMENT_SCORES = {
+  // Weapons (rarer = higher score)
+  'Sniper': 30, 'Rifle': 20, 'Shotgun': 15, 'Flare Gun': 35,
+  'Crowbar': 10,
+  // Armor levels
+  'armor_l3': 30, 'armor_l2': 20, 'armor_l1': 10,
+  // Backpack levels
+  'backpack_l3': 25, 'backpack_l2': 15, 'backpack_l1': 8
+};
+
+function calculateScore() {
+  let score = 0;
+
+  // Kill score (15 points per kill)
+  const killScore = game.kills * 15;
+  score += killScore;
+
+  // Weapon scores
+  let weaponScore = 0;
+  for (const w of player.weapons) {
+    if (w) weaponScore += (EQUIPMENT_SCORES[w.name] || 5);
+  }
+  score += weaponScore;
+
+  // Armor score
+  let armorScore = 0;
+  if (player.armorLevel > 0) {
+    armorScore = EQUIPMENT_SCORES['armor_l' + player.armorLevel] || 0;
+  }
+  score += armorScore;
+
+  // Backpack score
+  let backpackScore = 0;
+  if (player.backpackLevel > 0) {
+    backpackScore = EQUIPMENT_SCORES['backpack_l' + player.backpackLevel] || 0;
+  }
+  score += backpackScore;
+
+  // Syringe bonus (rare item)
+  const syringeScore = player.syringeCount * 12;
+  score += syringeScore;
+
+  // Survival time bonus (1 point per 10 seconds survived)
+  const survivalScore = Math.floor(game.time / 10000);
+  score += survivalScore;
+
+  // Quest bonus
+  let questScore = 0;
+  let questsCompleted = 0;
+  if (quests) {
+    for (const q of quests) {
+      if (q.completed) {
+        questScore += q.scoreBonus;
+        questsCompleted++;
+      }
+    }
+  }
+  score += questScore;
+
+  return { total: score, killScore, weaponScore, armorScore, backpackScore, syringeScore, survivalScore, questScore, questsCompleted };
+}
+
+function getGrade(score, extracted) {
+  if (extracted && score >= 120) return { grade: 'SUPER', color: '#ff00ff' };
+  if (extracted && score >= 90) return { grade: 'S', color: '#f1c40f' };
+  if (score >= 100) return { grade: 'S', color: '#f1c40f' };
+  if (score >= 80) return { grade: 'A', color: '#2ecc71' };
+  if (score >= 60) return { grade: 'B', color: '#3498db' };
+  if (score >= 40) return { grade: 'C', color: '#e67e22' };
+  if (score >= 20) return { grade: 'D', color: '#e74c3c' };
+  return { grade: 'F', color: '#888' };
+}
+
+function showScoreboard(extracted) {
+  const scores = calculateScore();
+  const { grade, color } = getGrade(scores.total, extracted);
+  const aliveCount = (player.alive ? 1 : 0) + bots.filter(b => b.alive).length;
+
+  if (extracted) {
+    document.getElementById('go-title').textContent = 'EXTRACTED!';
+    document.getElementById('go-title').style.color = '#2ecc71';
+  } else if (player.alive && aliveCount <= 1) {
+    document.getElementById('go-title').textContent = 'WINNER WINNER!';
+    document.getElementById('go-title').style.color = '#f1c40f';
+  } else {
+    document.getElementById('go-title').textContent = 'ELIMINATED';
+    document.getElementById('go-title').style.color = '#e74c3c';
+  }
+
+  const timeAlive = Math.floor(game.time / 1000);
+  const mins = Math.floor(timeAlive / 60);
+  const secs = timeAlive % 60;
+
+  document.getElementById('go-stats').innerHTML = `
+    <div class="grade-display" style="color:${color}">${grade}</div>
+    <div class="stat-row"><span class="stat-label">Placement</span><span class="stat-value">#${aliveCount}</span></div>
+    <div class="stat-row"><span class="stat-label">Kills</span><span class="stat-value">${game.kills} (+${scores.killScore}pts)</span></div>
+    <div class="stat-row"><span class="stat-label">Weapons</span><span class="stat-value">+${scores.weaponScore}pts</span></div>
+    <div class="stat-row"><span class="stat-label">Armor</span><span class="stat-value">+${scores.armorScore}pts</span></div>
+    <div class="stat-row"><span class="stat-label">Backpack</span><span class="stat-value">+${scores.backpackScore}pts</span></div>
+    <div class="stat-row"><span class="stat-label">Syringes</span><span class="stat-value">+${scores.syringeScore}pts</span></div>
+    <div class="stat-row"><span class="stat-label">Survival Time</span><span class="stat-value">${mins}:${secs.toString().padStart(2,'0')} (+${scores.survivalScore}pts)</span></div>
+    <div class="stat-row"><span class="stat-label">Quests (${scores.questsCompleted}/3)</span><span class="stat-value">+${scores.questScore}pts</span></div>
+    <div class="stat-row" style="border-top:2px solid #fff;margin-top:8px;padding-top:8px"><span class="stat-label" style="color:#fff">TOTAL SCORE</span><span class="stat-value" style="color:${color};font-size:22px">${scores.total}</span></div>
+  `;
+
+  document.getElementById('game-over').style.display = 'flex';
+  game.running = false;
+}
+
 // ─── Game Loop ───
 let lastTime = 0;
 function gameLoop(time) {
@@ -2562,6 +3373,36 @@ function gameLoop(time) {
   }
 
   if(player.alive && !player.dropping){
+
+    // ── Vehicle driving mode ──
+    if (player.inVehicle) {
+      const v = player.inVehicle;
+      // W = accelerate, S = brake/reverse
+      if (keys['w']) v.speed = Math.min(v.maxSpeed, v.speed + v.accel);
+      if (keys['s']) {
+        if (v.speed > 0.2) v.speed = Math.max(0, v.speed - v.brakeForce * 2); // brake
+        else v.speed = Math.max(-v.maxSpeed * 0.4, v.speed - v.accel * 0.5); // reverse
+      }
+      // A/D = turn (only when moving)
+      if (Math.abs(v.speed) > 0.3) {
+        if (keys['a']) v.angle -= v.turnSpeed * (v.speed > 0 ? 1 : -1);
+        if (keys['d']) v.angle += v.turnSpeed * (v.speed > 0 ? 1 : -1);
+      }
+      // E = exit vehicle
+      if (keys['e']) {
+        const eNow = performance.now();
+        if (!player._lastVehicleToggle || eNow - player._lastVehicleToggle > 500) {
+          player._lastVehicleToggle = eNow;
+          exitVehicle(player);
+        }
+      }
+      // Camera follows vehicle
+      const camX = player.x - canvas.width/2, camY = player.y - canvas.height/2;
+      player.angle = v.angle;
+      mouse.clicked = false;
+    }
+    // ── Normal on-foot mode ──
+    else {
     let dx=0,dy=0;
     if(keys['w'])dy-=1; if(keys['s'])dy+=1; if(keys['a'])dx-=1; if(keys['d'])dx+=1;
     if(dx||dy){const len=Math.sqrt(dx*dx+dy*dy);player.x+=(dx/len)*player.speed;player.y+=(dy/len)*player.speed;}
@@ -2622,18 +3463,26 @@ function gameLoop(time) {
     if(keys['1']){player.currentWeapon=0;player.reloading=false;}
     if(keys['2']){player.currentWeapon=1;player.reloading=false;}
     if(keys['3']){player.currentWeapon=2;player.reloading=false;}
-    // E key: toggle door if near one, otherwise pickup loot
+    // E key: toggle door if near one, otherwise pickup loot, or enter vehicle
     if(keys['e']) {
       const doorNow = performance.now();
       if(!player._lastDoorToggle || doorNow - player._lastDoorToggle > 300) {
         if(toggleNearbyDoor(player)) { player._lastDoorToggle = doorNow; }
-        else tryOpenAirdrop(player, true);
+        else if (!tryOpenAirdrop(player, true)) {
+          // Try enter vehicle
+          const nearVeh = getNearestVehicle(player, 50);
+          if (nearVeh) {
+            player._lastDoorToggle = doorNow;
+            enterVehicle(player, nearVeh);
+          }
+        }
       }
     }
     if(keys['r']) startReload(player);
     updateReload(player);
     updateHealing(player);
     pickupLoot(player, true);
+    } // end else (on-foot mode)
   }
 
   // Finish landing any bots still parachuting from the drop
@@ -2660,6 +3509,8 @@ function gameLoop(time) {
   updateGrenades();
   updateFlares();
   updateAirdrops();
+  updateQuests(dt);
+  updateVehicles(dt);
   updateParticles();
 
   // Body part system: bleeding + injury effects for all entities
@@ -2668,16 +3519,8 @@ function gameLoop(time) {
 
   const aliveCount=1+bots.filter(b=>b.alive).length-(player.alive?0:1);
   if(!player.alive||aliveCount<=1){
-    if(player.alive&&aliveCount<=1){
-      document.getElementById('go-title').textContent='WINNER WINNER!';
-      document.getElementById('go-title').style.color='#f1c40f';
-    } else {
-      document.getElementById('go-title').textContent='ELIMINATED';
-      document.getElementById('go-title').style.color='#e74c3c';
-    }
-    document.getElementById('go-stats').innerHTML=`Placement: #${aliveCount}<br>Kills: ${game.kills}`;
-    document.getElementById('game-over').style.display='flex';
-    game.running=false; return;
+    showScoreboard(false);
+    return;
   }
 
   render();
@@ -2732,19 +3575,39 @@ function render() {
     ctx.globalAlpha=1;
   }
 
-  // Zone overlay
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(0,0,MAP_SIZE,MAP_SIZE);
-  ctx.arc(zone.x,zone.y,zone.r,0,Math.PI*2,true);
-  ctx.fillStyle='rgba(231,76,60,0.25)';
-  ctx.fill();
-  ctx.restore();
-  ctx.beginPath();
-  ctx.arc(zone.x,zone.y,zone.r,0,Math.PI*2);
-  ctx.strokeStyle='rgba(231,76,60,0.7)';
-  ctx.lineWidth=3;
-  ctx.stroke();
+  // Retreat zone overlay (green safe zone)
+  if (retreatZone && retreatZone.active) {
+    const now = performance.now();
+    const pulse = 0.15 + Math.sin(now / 600) * 0.05;
+    // Green glow fill
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(retreatZone.x, retreatZone.y, retreatZone.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(46,204,113,${pulse})`;
+    ctx.fill();
+    ctx.restore();
+    // Border ring
+    ctx.beginPath();
+    ctx.arc(retreatZone.x, retreatZone.y, retreatZone.r, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(46,204,113,0.8)';
+    ctx.lineWidth = 4;
+    ctx.stroke();
+    // Progress ring (shows how much time left)
+    if (retreatZone.timer > 0) {
+      const progress = Math.min(1, retreatZone.timer / retreatZone.required);
+      ctx.beginPath();
+      ctx.arc(retreatZone.x, retreatZone.y, retreatZone.r + 8, -Math.PI/2, -Math.PI/2 + progress * Math.PI * 2);
+      ctx.strokeStyle = '#f1c40f';
+      ctx.lineWidth = 6;
+      ctx.stroke();
+    }
+    // Label
+    ctx.fillStyle = '#2ecc71';
+    ctx.font = 'bold 16px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('RETREAT ZONE', retreatZone.x, retreatZone.y - retreatZone.r - 15);
+    ctx.textAlign = 'left';
+  }
 
   // Buildings
   for(const b of buildings){
@@ -2897,6 +3760,12 @@ function render() {
     }
     ctx.restore();
   }
+
+  // Vehicles
+  renderVehicles(camX, camY);
+
+  // Quest objects
+  renderQuests(camX, camY);
 
   // Loot on ground
   for(const l of loot){
@@ -3118,8 +3987,8 @@ function render() {
     ctx.restore();
   }
 
-  // Player
-  if(player.alive){
+  // Player (hidden when in vehicle)
+  if(player.alive && !player.inVehicle){
     ctx.save(); ctx.translate(player.x,player.y);
     ctx.fillStyle='#2ecc71';
     ctx.beginPath(); ctx.arc(0,0,player.r,0,Math.PI*2); ctx.fill();
@@ -3247,14 +4116,38 @@ function render() {
   document.getElementById('alive-count').textContent=`Alive: ${aliveCount}`;
   document.getElementById('kill-count').textContent=`Kills: ${game.kills}`;
 
-  const cw=player.weapons[player.currentWeapon];
-  const armStatus = player.bodyParts.arms.hits>=2?' [ARMS INJURED]':player.bodyParts.arms.hits===1?' [ARMS HURT]':'';
-  if(cw){
-    const rt=player.reloading?' [RELOADING]':'';
-    const ammoCount=getAmmo(player,cw.ammoType);
-    document.getElementById('weapon-info').textContent=`${cw.name} (${cw.ammoType}) | ${player.mag[player.currentWeapon]}/${ammoCount}${rt}${armStatus}`;
+  // Quest tracker HUD
+  if (quests) {
+    let qHTML = '';
+    for (const q of quests) {
+      const done = q.completed;
+      let status = '';
+      if (q.type === 'valves' && !done) {
+        const activated = q.objects.filter(v => v.activated).length;
+        status = ` (${activated}/4)`;
+      }
+      if (q.type === 'keycard' && !done) {
+        status = player.hasKeycard ? ' (Use Terminal)' : ' (Find Card)';
+      }
+      qHTML += `<div class="quest-item${done ? ' done' : ''}" style="border-left-color:${q.color}">${done ? '\u2713' : '\u25CB'} ${q.name}${status}${done ? ' +' + q.scoreBonus + 'pts' : ''}</div>`;
+    }
+    document.getElementById('quest-tracker').innerHTML = qHTML;
+  }
+
+  if (player.inVehicle) {
+    const v = player.inVehicle;
+    const speedPct = Math.abs(v.speed) / v.maxSpeed * 100;
+    document.getElementById('weapon-info').textContent=`${v.name} | HP: ${Math.ceil(v.hp)}/${v.maxHp} | Speed: ${Math.round(speedPct)}% | [E] Exit`;
   } else {
-    document.getElementById('weapon-info').textContent=`Fists [F=Punch]${armStatus}`;
+    const cw=player.weapons[player.currentWeapon];
+    const armStatus = player.bodyParts.arms.hits>=2?' [ARMS INJURED]':player.bodyParts.arms.hits===1?' [ARMS HURT]':'';
+    if(cw){
+      const rt=player.reloading?' [RELOADING]':'';
+      const ammoCount=getAmmo(player,cw.ammoType);
+      document.getElementById('weapon-info').textContent=`${cw.name} (${cw.ammoType}) | ${player.mag[player.currentWeapon]}/${ammoCount}${rt}${armStatus}`;
+    } else {
+      document.getElementById('weapon-info').textContent=`Fists [F=Punch]${armStatus}`;
+    }
   }
 
   // Crate / Door prompt
@@ -3417,9 +4310,16 @@ function render() {
   for(const rd of roads){miniCtx.beginPath();miniCtx.moveTo(rd.x1*sc,rd.y1*sc);miniCtx.lineTo(rd.x2*sc,rd.y2*sc);miniCtx.stroke();}
   miniCtx.fillStyle='#555';
   for(const b of buildings) miniCtx.fillRect(b.x*sc,b.y*sc,b.w*sc,b.h*sc);
-  miniCtx.beginPath();
-  miniCtx.arc(zone.x*sc,zone.y*sc,zone.r*sc,0,Math.PI*2);
-  miniCtx.strokeStyle='rgba(231,76,60,0.8)'; miniCtx.lineWidth=1; miniCtx.stroke();
+  // Retreat zone on minimap (green circle)
+  if (retreatZone && retreatZone.active) {
+    miniCtx.beginPath();
+    miniCtx.arc(retreatZone.x*sc,retreatZone.y*sc,retreatZone.r*sc,0,Math.PI*2);
+    miniCtx.fillStyle='rgba(46,204,113,0.2)'; miniCtx.fill();
+    miniCtx.strokeStyle='rgba(46,204,113,0.9)'; miniCtx.lineWidth=1.5; miniCtx.stroke();
+  }
+  // Quest markers on minimap
+  renderQuestsMinimap(sc);
+  renderVehiclesMinimap(sc);
   if(player.alive){
     miniCtx.fillStyle='#2ecc71';
     miniCtx.beginPath(); miniCtx.arc(player.x*sc,player.y*sc,3,0,Math.PI*2); miniCtx.fill();
