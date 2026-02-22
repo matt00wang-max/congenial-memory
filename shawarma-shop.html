@@ -1,0 +1,1517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shawarma Shop Tycoon</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            user-select: none;
+        }
+
+        body {
+            background: linear-gradient(135deg, #2c1810 0%, #1a0f0a 100%);
+            height: 100vh;
+            color: white;
+            overflow: hidden;
+        }
+
+        .game-container {
+            display: grid;
+            grid-template-rows: 50px 1fr;
+            height: 100vh;
+            padding: 8px;
+            gap: 8px;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(139, 90, 43, 0.4);
+            padding: 8px 20px;
+            border-radius: 10px;
+            border: 2px solid #8b5a2b;
+        }
+
+        .header h1 {
+            color: #f4a460;
+            font-size: 1.3em;
+        }
+
+        .stats {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .stat {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 0.95em;
+        }
+
+        .money { color: #2ecc71; font-weight: bold; }
+
+        .day-info {
+            background: rgba(0,0,0,0.3);
+            padding: 5px 12px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .day-progress {
+            width: 80px;
+            height: 8px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .day-progress-fill {
+            height: 100%;
+            background: #f39c12;
+            transition: width 0.3s;
+        }
+
+        .shop-btn {
+            background: linear-gradient(135deg, #9b59b6, #8e44ad);
+            border: none;
+            color: white;
+            padding: 6px 14px;
+            border-radius: 15px;
+            cursor: pointer;
+            font-size: 0.85em;
+        }
+
+        /* Day End Overlay */
+        .day-end-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.9);
+            z-index: 300;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+
+        .day-end-overlay.active {
+            display: flex;
+        }
+
+        .day-end-content {
+            background: linear-gradient(135deg, #3d2d22, #2c1810);
+            border-radius: 20px;
+            padding: 30px 50px;
+            text-align: center;
+            border: 3px solid #8b5a2b;
+        }
+
+        .day-end-title {
+            font-size: 2em;
+            color: #f4a460;
+            margin-bottom: 20px;
+        }
+
+        .day-stats {
+            margin: 20px 0;
+            font-size: 1.2em;
+        }
+
+        .day-stats div {
+            margin: 10px 0;
+        }
+
+        .next-day-btn {
+            background: linear-gradient(135deg, #27ae60, #1e8449);
+            border: none;
+            color: white;
+            padding: 15px 40px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 1.2em;
+            font-weight: bold;
+            margin-top: 20px;
+        }
+
+        .next-day-btn:hover {
+            transform: scale(1.05);
+        }
+
+        /* Main Game Area */
+        .game-area {
+            display: grid;
+            grid-template-columns: 180px 1fr 200px;
+            gap: 10px;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        /* Left Panel */
+        .left-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .panel {
+            background: rgba(139, 90, 43, 0.3);
+            border-radius: 10px;
+            padding: 10px;
+            border: 2px solid #6b4423;
+        }
+
+        .panel-title {
+            font-size: 0.9em;
+            margin-bottom: 8px;
+            color: #f4a460;
+            border-bottom: 1px solid #8b5a2b;
+            padding-bottom: 4px;
+        }
+
+        /* Meat Section */
+        .meat-section {
+            text-align: center;
+        }
+
+        .meat-spit {
+            width: 100%;
+            height: 80px;
+            background: linear-gradient(180deg, #8b4513 0%, #654321 100%);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            border: 2px solid #4a3728;
+            margin-bottom: 8px;
+        }
+
+        .meat-icon {
+            font-size: 3em;
+        }
+
+        .meat-count {
+            position: absolute;
+            bottom: 5px;
+            right: 5px;
+            background: rgba(0,0,0,0.6);
+            padding: 2px 8px;
+            border-radius: 8px;
+            font-size: 0.75em;
+        }
+
+        .cut-btn {
+            width: 100%;
+            background: linear-gradient(135deg, #27ae60, #1e8449);
+            border: none;
+            color: white;
+            padding: 8px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.85em;
+        }
+
+        .cut-btn:hover {
+            transform: scale(1.02);
+        }
+
+        .cut-btn:disabled {
+            background: #555;
+            cursor: not-allowed;
+        }
+
+        /* Ingredient Tray */
+        .ingredient-tray {
+            flex: 1;
+        }
+
+        .tray-items {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .tray-item {
+            background: rgba(255,255,255,0.1);
+            border-radius: 8px;
+            padding: 6px 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: grab;
+            transition: all 0.2s;
+            border: 2px solid transparent;
+        }
+
+        .tray-item:hover {
+            background: rgba(255,255,255,0.2);
+            border-color: #f4a460;
+        }
+
+        .tray-item.disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .tray-item.locked {
+            opacity: 0.3;
+            cursor: not-allowed;
+            background: rgba(100,100,100,0.2);
+        }
+
+        .tray-item .info {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .tray-item .icon {
+            font-size: 1.3em;
+        }
+
+        .tray-item .name {
+            font-size: 0.85em;
+        }
+
+        .tray-item .count {
+            font-size: 0.75em;
+            color: #aaa;
+            background: rgba(0,0,0,0.3);
+            padding: 2px 6px;
+            border-radius: 8px;
+        }
+
+        .tray-item .locked-text {
+            font-size: 0.65em;
+            color: #e74c3c;
+        }
+
+        .restock-btn {
+            width: 100%;
+            background: #3498db;
+            border: none;
+            color: white;
+            padding: 6px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.75em;
+            margin-top: 6px;
+        }
+
+        /* Kitchen Main */
+        .kitchen-main {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        /* Prep Station */
+        .prep-station {
+            flex: 1;
+            background: linear-gradient(180deg, #4a3728 0%, #3d2d22 100%);
+            border-radius: 15px;
+            border: 3px dashed #8b5a2b;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            min-height: 200px;
+            transition: all 0.3s;
+        }
+
+        .prep-station.drag-over {
+            background: linear-gradient(180deg, #5a4738 0%, #4d3d32 100%);
+            border-color: #f4a460;
+            transform: scale(1.01);
+        }
+
+        .prep-label {
+            position: absolute;
+            top: 10px;
+            left: 12px;
+            font-size: 0.85em;
+            color: #a0825a;
+        }
+
+        .prep-contents {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .prep-base {
+            font-size: 4.5em;
+        }
+
+        .prep-ingredients {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .prep-ingredient {
+            font-size: 1.8em;
+            animation: plop 0.3s ease;
+            cursor: pointer;
+        }
+
+        .prep-ingredient:hover {
+            transform: scale(1.3);
+        }
+
+        @keyframes plop {
+            0% { transform: scale(0); }
+            80% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+
+        .prep-hint {
+            color: #666;
+            font-size: 1em;
+        }
+
+        .prep-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .wrap-btn {
+            background: linear-gradient(135deg, #27ae60, #1e8449);
+            border: none;
+            color: white;
+            padding: 10px 25px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: bold;
+        }
+
+        .wrap-btn:hover {
+            transform: scale(1.05);
+        }
+
+        .clear-btn {
+            background: #e74c3c;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 0.9em;
+        }
+
+        /* Wrapped Shawarma */
+        .wrapped-shawarma {
+            font-size: 4em;
+            cursor: grab;
+            animation: readyPulse 1s infinite;
+        }
+
+        .wrapped-shawarma:hover {
+            transform: scale(1.1);
+        }
+
+        @keyframes readyPulse {
+            0%, 100% { filter: drop-shadow(0 0 10px rgba(243, 156, 18, 0.5)); }
+            50% { filter: drop-shadow(0 0 20px rgba(243, 156, 18, 0.8)); }
+        }
+
+        .drag-hint {
+            font-size: 0.8em;
+            color: #f4a460;
+            margin-top: 5px;
+        }
+
+        /* Customers Panel */
+        .customers-panel {
+            background: rgba(139, 90, 43, 0.3);
+            border-radius: 10px;
+            padding: 10px;
+            border: 2px solid #6b4423;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        .customer {
+            background: rgba(0,0,0,0.3);
+            border-radius: 10px;
+            padding: 10px;
+            margin-bottom: 8px;
+            border: 3px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .customer.drag-over {
+            border-color: #27ae60;
+            background: rgba(39, 174, 96, 0.2);
+            transform: scale(1.02);
+        }
+
+        .customer-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+
+        .customer-icon { font-size: 1.4em; }
+
+        .customer-patience {
+            width: 100%;
+            height: 5px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-bottom: 6px;
+        }
+
+        .patience-fill {
+            height: 100%;
+            background: #2ecc71;
+            transition: width 0.5s;
+        }
+
+        .patience-low { background: #e74c3c; }
+        .patience-medium { background: #f39c12; }
+
+        .customer-order {
+            display: flex;
+            gap: 3px;
+            flex-wrap: wrap;
+        }
+
+        .order-item {
+            font-size: 1.1em;
+            background: rgba(255,255,255,0.1);
+            padding: 2px 5px;
+            border-radius: 4px;
+        }
+
+        .order-item.has { background: #27ae60; }
+
+        .order-item.jam-bonus {
+            background: linear-gradient(135deg, #9b59b6, #8e44ad);
+            animation: jamGlow 1s infinite;
+        }
+
+        @keyframes jamGlow {
+            0%, 100% { box-shadow: 0 0 5px #9b59b6; }
+            50% { box-shadow: 0 0 10px #9b59b6; }
+        }
+
+        /* Money effect */
+        .money-float {
+            position: fixed;
+            font-size: 1.5em;
+            pointer-events: none;
+            z-index: 1000;
+            animation: moneyFly 1s ease-out forwards;
+        }
+
+        @keyframes moneyFly {
+            0% { transform: scale(1); opacity: 1; }
+            100% { transform: translateY(-50px) scale(1.5); opacity: 0; }
+        }
+
+        /* Floating ingredients */
+        .floating-ingredient {
+            position: fixed;
+            font-size: 2em;
+            pointer-events: none;
+            z-index: 500;
+            animation: fadeOut 5s forwards;
+        }
+
+        @keyframes fadeOut {
+            0% { opacity: 0.8; }
+            80% { opacity: 0.5; }
+            100% { opacity: 0; }
+        }
+
+        /* Drag ghost */
+        .drag-ghost {
+            position: fixed;
+            pointer-events: none;
+            z-index: 1000;
+            font-size: 2.5em;
+            opacity: 0.9;
+            transform: translate(-50%, -50%);
+            filter: drop-shadow(0 4px 8px rgba(0,0,0,0.4));
+        }
+
+        /* Shop Modal */
+        .shop-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.85);
+            z-index: 200;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .shop-modal.active { display: flex; }
+
+        .shop-content {
+            background: linear-gradient(135deg, #3d2d22, #2c1810);
+            border-radius: 15px;
+            padding: 20px;
+            max-width: 650px;
+            width: 90%;
+            max-height: 85vh;
+            overflow-y: auto;
+            border: 3px solid #8b5a2b;
+        }
+
+        .shop-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .shop-title { font-size: 1.3em; color: #f4a460; }
+
+        .close-btn {
+            background: #e74c3c;
+            border: none;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 1.1em;
+        }
+
+        .upgrades-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+
+        .upgrade-card {
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+            padding: 10px;
+            text-align: center;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .upgrade-card:hover { border-color: #f4a460; }
+        .upgrade-card.owned { border-color: #2ecc71; background: rgba(46, 204, 113, 0.2); }
+
+        .upgrade-icon { font-size: 1.6em; }
+        .upgrade-name { font-size: 0.8em; margin: 4px 0; }
+        .upgrade-desc { font-size: 0.65em; color: #aaa; margin-bottom: 5px; }
+        .upgrade-price { font-size: 0.85em; color: #2ecc71; margin-bottom: 5px; }
+
+        .buy-btn {
+            background: #3498db;
+            border: none;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.75em;
+        }
+
+        .buy-btn:disabled { background: #555; cursor: not-allowed; }
+        .buy-btn.owned { background: #2ecc71; }
+
+        /* Notifications */
+        .notification {
+            position: fixed;
+            top: 60px;
+            right: 15px;
+            background: #2ecc71;
+            color: white;
+            padding: 10px 18px;
+            border-radius: 8px;
+            animation: slideIn 0.3s, slideOut 0.3s 2.7s;
+            z-index: 400;
+            font-size: 0.9em;
+        }
+
+        .notification.error { background: #e74c3c; }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        @keyframes slideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <!-- Header -->
+        <div class="header">
+            <h1>🌯 Shawarma Shop</h1>
+            <div class="stats">
+                <div class="stat">
+                    <span>💰</span>
+                    <span class="money" id="money">$100</span>
+                </div>
+                <div class="stat">
+                    <span>⭐</span>
+                    <span id="reputation">0</span>
+                </div>
+                <div class="day-info">
+                    <span>📅 Day <span id="day-num">1</span></span>
+                    <div class="day-progress">
+                        <div class="day-progress-fill" id="day-progress"></div>
+                    </div>
+                    <span id="served-today">0</span>/<span id="day-goal">5</span>
+                </div>
+                <button class="shop-btn" onclick="openShop()">🛒 Shop</button>
+            </div>
+        </div>
+
+        <!-- Main Game Area -->
+        <div class="game-area">
+            <!-- Left Panel -->
+            <div class="left-panel">
+                <!-- Meat Section -->
+                <div class="panel meat-section">
+                    <div class="panel-title">🥩 Meat Spit</div>
+                    <div class="meat-spit">
+                        <span class="meat-icon">🍖</span>
+                        <span class="meat-count" id="raw-meat-count">20</span>
+                    </div>
+                    <button class="cut-btn" id="cut-btn" onclick="cutMeat()">
+                        🔪 Cut Meat (Free)
+                    </button>
+                    <div style="margin-top: 5px; font-size: 0.7em; color: #888;">
+                        Cut: <span id="cut-meat-count">0</span>
+                    </div>
+                </div>
+
+                <!-- Ingredient Tray -->
+                <div class="panel ingredient-tray">
+                    <div class="panel-title">📦 Ingredients</div>
+                    <div class="tray-items">
+                        <div class="tray-item" data-type="bread" id="tray-bread">
+                            <div class="info">
+                                <span class="icon">🫓</span>
+                                <span class="name">Bread</span>
+                            </div>
+                            <span class="count" id="bread-count">10</span>
+                        </div>
+                        <div class="tray-item" data-type="meat" id="tray-meat">
+                            <div class="info">
+                                <span class="icon">🍗</span>
+                                <span class="name">Meat</span>
+                            </div>
+                            <span class="count" id="meat-count">0</span>
+                        </div>
+                        <div class="tray-item" data-type="radish" id="tray-radish">
+                            <div class="info">
+                                <span class="icon">🥬</span>
+                                <span class="name">Radish</span>
+                            </div>
+                            <span class="count" id="radish-count">10</span>
+                        </div>
+                        <div class="tray-item" data-type="pickles" id="tray-pickles">
+                            <div class="info">
+                                <span class="icon">🥒</span>
+                                <span class="name">Pickles</span>
+                            </div>
+                            <span class="count" id="pickles-count">10</span>
+                        </div>
+                        <div class="tray-item" data-type="cream" id="tray-cream">
+                            <div class="info">
+                                <span class="icon">🥛</span>
+                                <span class="name">Cream</span>
+                            </div>
+                            <span class="count" id="cream-count">10</span>
+                        </div>
+                        <div class="tray-item locked" data-type="jam" id="tray-jam">
+                            <div class="info">
+                                <span class="icon">🍯</span>
+                                <span class="name">Jam</span>
+                            </div>
+                            <span class="locked-text" id="jam-status">🔒 Upgrade</span>
+                        </div>
+                    </div>
+                    <button class="restock-btn" onclick="restockAll()">Restock ($20)</button>
+                </div>
+            </div>
+
+            <!-- Main Kitchen -->
+            <div class="kitchen-main">
+                <div class="prep-station" id="prep-station">
+                    <span class="prep-label">📋 Preparing Station</span>
+                    <div class="prep-contents" id="prep-contents">
+                        <span class="prep-hint">Drag 🫓 bread here to start</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Customers Panel -->
+            <div class="customers-panel">
+                <div class="panel-title">👥 Customers</div>
+                <div id="customers-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Day End Overlay -->
+    <div class="day-end-overlay" id="day-end-overlay">
+        <div class="day-end-content">
+            <div class="day-end-title">🌙 Day <span id="end-day-num">1</span> Complete!</div>
+            <div class="day-stats">
+                <div>🍽️ Served: <span id="end-served">0</span> customers</div>
+                <div>💰 Earned: $<span id="end-earned">0</span></div>
+                <div>⭐ Reputation: <span id="end-rep">0</span></div>
+            </div>
+            <button class="next-day-btn" onclick="startNextDay()">☀️ Start Day <span id="next-day-num">2</span></button>
+        </div>
+    </div>
+
+    <!-- Shop Modal -->
+    <div class="shop-modal" id="shop-modal">
+        <div class="shop-content">
+            <div class="shop-header">
+                <h2 class="shop-title">🛒 Upgrades</h2>
+                <button class="close-btn" onclick="closeShop()">×</button>
+            </div>
+            <div class="upgrades-grid" id="upgrades-list"></div>
+        </div>
+    </div>
+
+    <script>
+        // Game State
+        const gameState = {
+            money: 100,
+            reputation: 0,
+
+            day: 1,
+            servedToday: 0,
+            dayGoal: 5,
+            earnedToday: 0,
+            dayActive: true,
+
+            ingredients: {
+                rawMeat: 20,
+                cutMeat: 0,
+                bread: 10,
+                radish: 10,
+                pickles: 10,
+                cream: 10,
+                jam: 0
+            },
+
+            currentPrep: [],
+            hasBread: false,
+            isWrapped: false,
+            wrappedOrder: [],
+
+            customers: [],
+            maxCustomers: 3,
+
+            upgrades: {
+                jamStation: false,
+                sharpKnife: false,
+                biggerTray: false,
+                premiumIngredients: false,
+                fasterCustomers: false,
+                moreTips: false,
+                moreCustomers: false
+            }
+        };
+
+        const ingredientIcons = {
+            bread: '🫓',
+            meat: '🍗',
+            radish: '🥬',
+            pickles: '🥒',
+            cream: '🥛',
+            jam: '🍯',
+            chicken: '🍗'
+        };
+
+        const customerIcons = ['👨', '👩', '👴', '👵', '🧑', '👨‍🦰', '👩‍🦰', '👨‍🦱', '👩‍🦱', '🧔'];
+
+        const upgradesData = [
+            { id: 'jamStation', name: 'Jam Station', desc: 'Unlock jam! +$10 bonus when ordered', price: 80, icon: '🍯' },
+            { id: 'sharpKnife', name: 'Sharp Knife', desc: 'Cut 3 pieces at once', price: 100, icon: '🔪' },
+            { id: 'biggerTray', name: 'Bigger Tray', desc: 'Store 30 of each', price: 120, icon: '📦' },
+            { id: 'premiumIngredients', name: 'Premium', desc: '+30% earnings', price: 180, icon: '⭐' },
+            { id: 'fasterCustomers', name: 'Good Rep', desc: 'More patient customers', price: 150, icon: '😊' },
+            { id: 'moreTips', name: 'Charm', desc: 'Better tips', price: 200, icon: '💝' },
+            { id: 'moreCustomers', name: 'Popular', desc: '4 customers at once', price: 250, icon: '👥' }
+        ];
+
+        let isDragging = false;
+        let dragType = null;
+        let dragGhost = null;
+        let isDraggingShawarma = false;
+        let customerSpawnInterval = null;
+
+        function init() {
+            setupDragEvents();
+            renderUpgrades();
+            startDay();
+            setInterval(gameLoop, 100);
+            updateUI();
+        }
+
+        function startDay() {
+            gameState.dayActive = true;
+            gameState.servedToday = 0;
+            gameState.earnedToday = 0;
+            gameState.customers = [];
+
+            // Slower customer spawn - every 10 seconds
+            if (customerSpawnInterval) clearInterval(customerSpawnInterval);
+            customerSpawnInterval = setInterval(() => {
+                if (gameState.dayActive) spawnCustomer();
+            }, 10000);
+
+            // Spawn first customer after 2 seconds
+            setTimeout(() => {
+                if (gameState.dayActive) spawnCustomer();
+            }, 2000);
+
+            updateUI();
+        }
+
+        function endDay() {
+            gameState.dayActive = false;
+            if (customerSpawnInterval) clearInterval(customerSpawnInterval);
+
+            // Clear remaining customers
+            gameState.customers = [];
+
+            // Show day end screen
+            document.getElementById('end-day-num').textContent = gameState.day;
+            document.getElementById('end-served').textContent = gameState.servedToday;
+            document.getElementById('end-earned').textContent = gameState.earnedToday;
+            document.getElementById('end-rep').textContent = gameState.reputation;
+            document.getElementById('next-day-num').textContent = gameState.day + 1;
+            document.getElementById('day-end-overlay').classList.add('active');
+        }
+
+        function startNextDay() {
+            document.getElementById('day-end-overlay').classList.remove('active');
+            gameState.day++;
+            gameState.dayGoal = 5 + Math.floor(gameState.day * 1.5);
+
+            // Refill some ingredients
+            const maxStock = gameState.upgrades.biggerTray ? 30 : 20;
+            gameState.ingredients.rawMeat = Math.min(gameState.ingredients.rawMeat + 10, maxStock);
+
+            startDay();
+        }
+
+        function cutMeat() {
+            if (gameState.ingredients.rawMeat <= 0) {
+                showNotification('No raw meat!', true);
+                return;
+            }
+
+            gameState.ingredients.rawMeat--;
+            const pieces = gameState.upgrades.sharpKnife ? 3 : 2;
+            gameState.ingredients.cutMeat += pieces;
+
+            showNotification(`Cut ${pieces} pieces!`);
+            updateUI();
+        }
+
+        function setupDragEvents() {
+            document.addEventListener('mousedown', (e) => {
+                const item = e.target.closest('.tray-item');
+                if (item && !item.classList.contains('disabled') && !item.classList.contains('locked')) {
+                    startDrag(e, item);
+                }
+            });
+
+            document.addEventListener('mousemove', onDrag);
+            document.addEventListener('mouseup', endDrag);
+
+            document.addEventListener('touchstart', (e) => {
+                const item = e.target.closest('.tray-item');
+                if (item && !item.classList.contains('disabled') && !item.classList.contains('locked')) {
+                    e.preventDefault();
+                    startDragTouch(e, item);
+                }
+            }, { passive: false });
+
+            document.addEventListener('touchmove', onDragTouch, { passive: false });
+            document.addEventListener('touchend', endDragTouch);
+        }
+
+        function startDrag(e, item) {
+            dragType = item.dataset.type;
+            isDragging = true;
+
+            dragGhost = document.createElement('div');
+            dragGhost.className = 'drag-ghost';
+            dragGhost.textContent = ingredientIcons[dragType];
+            document.body.appendChild(dragGhost);
+            dragGhost.style.left = e.clientX + 'px';
+            dragGhost.style.top = e.clientY + 'px';
+            item.style.opacity = '0.5';
+        }
+
+        function startDragTouch(e, item) {
+            const touch = e.touches[0];
+            dragType = item.dataset.type;
+            isDragging = true;
+
+            dragGhost = document.createElement('div');
+            dragGhost.className = 'drag-ghost';
+            dragGhost.textContent = ingredientIcons[dragType];
+            document.body.appendChild(dragGhost);
+            dragGhost.style.left = touch.clientX + 'px';
+            dragGhost.style.top = touch.clientY + 'px';
+            item.style.opacity = '0.5';
+        }
+
+        function onDrag(e) {
+            if (isDraggingShawarma) {
+                onDragShawarma(e);
+                return;
+            }
+            if (!isDragging || !dragGhost) return;
+
+            dragGhost.style.left = e.clientX + 'px';
+            dragGhost.style.top = e.clientY + 'px';
+
+            const prepStation = document.getElementById('prep-station');
+            const rect = prepStation.getBoundingClientRect();
+            prepStation.classList.toggle('drag-over',
+                e.clientX >= rect.left && e.clientX <= rect.right &&
+                e.clientY >= rect.top && e.clientY <= rect.bottom);
+        }
+
+        function onDragTouch(e) {
+            if (isDraggingShawarma) {
+                onDragShawarmaTouch(e);
+                return;
+            }
+            if (!isDragging || !dragGhost) return;
+            e.preventDefault();
+            const touch = e.touches[0];
+
+            dragGhost.style.left = touch.clientX + 'px';
+            dragGhost.style.top = touch.clientY + 'px';
+
+            const prepStation = document.getElementById('prep-station');
+            const rect = prepStation.getBoundingClientRect();
+            prepStation.classList.toggle('drag-over',
+                touch.clientX >= rect.left && touch.clientX <= rect.right &&
+                touch.clientY >= rect.top && touch.clientY <= rect.bottom);
+        }
+
+        function endDrag(e) {
+            if (isDraggingShawarma) {
+                endDragShawarma(e);
+                return;
+            }
+            if (!isDragging) return;
+
+            const prepStation = document.getElementById('prep-station');
+            const rect = prepStation.getBoundingClientRect();
+            const onPrep = e.clientX >= rect.left && e.clientX <= rect.right &&
+                          e.clientY >= rect.top && e.clientY <= rect.bottom;
+
+            if (onPrep) {
+                addToPrep(dragType);
+            } else {
+                createFloatingIngredient(e.clientX, e.clientY, dragType);
+            }
+            cleanupDrag();
+        }
+
+        function endDragTouch(e) {
+            if (isDraggingShawarma) {
+                endDragShawarmaTouch(e);
+                return;
+            }
+            if (!isDragging || !dragGhost) return;
+
+            const prepStation = document.getElementById('prep-station');
+            const rect = prepStation.getBoundingClientRect();
+            const ghostRect = dragGhost.getBoundingClientRect();
+            const onPrep = ghostRect.left >= rect.left - 20 && ghostRect.right <= rect.right + 20 &&
+                          ghostRect.top >= rect.top - 20 && ghostRect.bottom <= rect.bottom + 20;
+
+            if (onPrep) {
+                addToPrep(dragType);
+            } else {
+                createFloatingIngredient(ghostRect.left, ghostRect.top, dragType);
+            }
+            cleanupDrag();
+        }
+
+        function cleanupDrag() {
+            if (dragGhost) {
+                dragGhost.remove();
+                dragGhost = null;
+            }
+            document.querySelectorAll('.tray-item').forEach(i => i.style.opacity = '1');
+            document.getElementById('prep-station').classList.remove('drag-over');
+            document.querySelectorAll('.customer').forEach(c => c.classList.remove('drag-over'));
+            isDragging = false;
+            isDraggingShawarma = false;
+            dragType = null;
+        }
+
+        function startDragShawarma(e) {
+            if (!gameState.isWrapped) return;
+            isDraggingShawarma = true;
+
+            dragGhost = document.createElement('div');
+            dragGhost.className = 'drag-ghost';
+            dragGhost.textContent = '🌯';
+            dragGhost.style.fontSize = '3em';
+            document.body.appendChild(dragGhost);
+
+            const x = e.clientX || e.touches[0].clientX;
+            const y = e.clientY || e.touches[0].clientY;
+            dragGhost.style.left = x + 'px';
+            dragGhost.style.top = y + 'px';
+        }
+
+        function onDragShawarma(e) {
+            if (!isDraggingShawarma || !dragGhost) return;
+            dragGhost.style.left = e.clientX + 'px';
+            dragGhost.style.top = e.clientY + 'px';
+
+            document.querySelectorAll('.customer').forEach(el => {
+                const rect = el.getBoundingClientRect();
+                el.classList.toggle('drag-over',
+                    e.clientX >= rect.left && e.clientX <= rect.right &&
+                    e.clientY >= rect.top && e.clientY <= rect.bottom);
+            });
+        }
+
+        function onDragShawarmaTouch(e) {
+            if (!isDraggingShawarma || !dragGhost) return;
+            e.preventDefault();
+            const touch = e.touches[0];
+            dragGhost.style.left = touch.clientX + 'px';
+            dragGhost.style.top = touch.clientY + 'px';
+
+            document.querySelectorAll('.customer').forEach(el => {
+                const rect = el.getBoundingClientRect();
+                el.classList.toggle('drag-over',
+                    touch.clientX >= rect.left && touch.clientX <= rect.right &&
+                    touch.clientY >= rect.top && touch.clientY <= rect.bottom);
+            });
+        }
+
+        function endDragShawarma(e) {
+            if (!isDraggingShawarma) return;
+
+            let served = null;
+            document.querySelectorAll('.customer').forEach(el => {
+                const rect = el.getBoundingClientRect();
+                if (e.clientX >= rect.left && e.clientX <= rect.right &&
+                    e.clientY >= rect.top && e.clientY <= rect.bottom) {
+                    served = gameState.customers.find(c => c.id === parseInt(el.dataset.id));
+                }
+            });
+
+            if (served) serveShawarma(served, e.clientX, e.clientY);
+            cleanupDrag();
+        }
+
+        function endDragShawarmaTouch(e) {
+            if (!isDraggingShawarma || !dragGhost) return;
+
+            const ghostRect = dragGhost.getBoundingClientRect();
+            let served = null;
+
+            document.querySelectorAll('.customer').forEach(el => {
+                const rect = el.getBoundingClientRect();
+                if (ghostRect.left >= rect.left - 20 && ghostRect.right <= rect.right + 20 &&
+                    ghostRect.top >= rect.top - 20 && ghostRect.bottom <= rect.bottom + 20) {
+                    served = gameState.customers.find(c => c.id === parseInt(el.dataset.id));
+                }
+            });
+
+            if (served) serveShawarma(served, ghostRect.left, ghostRect.top);
+            cleanupDrag();
+        }
+
+        function createFloatingIngredient(x, y, type) {
+            const el = document.createElement('div');
+            el.className = 'floating-ingredient';
+            el.textContent = ingredientIcons[type];
+            el.style.left = x + 'px';
+            el.style.top = y + 'px';
+            document.body.appendChild(el);
+            setTimeout(() => el.remove(), 5000);
+        }
+
+        function addToPrep(type) {
+            if (gameState.isWrapped) return;
+
+            if (type === 'bread') {
+                if (gameState.hasBread) return;
+                if (gameState.ingredients.bread <= 0) return;
+                gameState.hasBread = true;
+                gameState.ingredients.bread--;
+                updateUI();
+                return;
+            }
+
+            if (!gameState.hasBread) {
+                showNotification('Add bread first!', true);
+                return;
+            }
+
+            if (gameState.currentPrep.length >= 4) {
+                showNotification('Max 4 toppings!', true);
+                return;
+            }
+
+            if (type === 'meat') {
+                if (gameState.ingredients.cutMeat <= 0) return;
+                gameState.ingredients.cutMeat--;
+                gameState.currentPrep.push('chicken');
+            } else if (type === 'jam') {
+                if (gameState.ingredients.jam <= 0) return;
+                gameState.ingredients.jam--;
+                gameState.currentPrep.push('jam');
+            } else {
+                if (gameState.ingredients[type] <= 0) return;
+                gameState.ingredients[type]--;
+                gameState.currentPrep.push(type);
+            }
+            updateUI();
+        }
+
+        function removeFromPrep(index) {
+            if (gameState.isWrapped) return;
+            const item = gameState.currentPrep[index];
+            if (item === 'chicken') gameState.ingredients.cutMeat++;
+            else if (item === 'jam') gameState.ingredients.jam++;
+            else gameState.ingredients[item]++;
+            gameState.currentPrep.splice(index, 1);
+            updateUI();
+        }
+
+        function wrapShawarma() {
+            if (!gameState.hasBread || gameState.currentPrep.length === 0) return;
+            gameState.isWrapped = true;
+            gameState.wrappedOrder = [...gameState.currentPrep];
+            updateUI();
+        }
+
+        function clearPrep() {
+            if (gameState.hasBread && !gameState.isWrapped) gameState.ingredients.bread++;
+            if (!gameState.isWrapped) {
+                gameState.currentPrep.forEach(item => {
+                    if (item === 'chicken') gameState.ingredients.cutMeat++;
+                    else if (item === 'jam') gameState.ingredients.jam++;
+                    else gameState.ingredients[item]++;
+                });
+            }
+            gameState.hasBread = false;
+            gameState.currentPrep = [];
+            gameState.isWrapped = false;
+            gameState.wrappedOrder = [];
+            updateUI();
+        }
+
+        function serveShawarma(customer, x, y) {
+            const fulfilled = checkOrder(customer.order, gameState.wrappedOrder);
+
+            if (fulfilled) {
+                let base = 15 + gameState.wrappedOrder.length * 4;
+                let tip = Math.floor(customer.patience / 8);
+
+                // Jam bonus
+                if (customer.wantsJam && gameState.wrappedOrder.includes('jam')) {
+                    base += 10;
+                    showNotification('🍯 Jam bonus +$10!');
+                }
+
+                if (gameState.upgrades.premiumIngredients) base = Math.floor(base * 1.3);
+                if (gameState.upgrades.moreTips) tip = Math.floor(tip * 1.5);
+
+                const total = base + tip;
+                gameState.money += total;
+                gameState.reputation += 2;
+                gameState.servedToday++;
+                gameState.earnedToday += total;
+
+                createMoneyEffect(x, y);
+
+                const idx = gameState.customers.indexOf(customer);
+                if (idx > -1) gameState.customers.splice(idx, 1);
+
+                showNotification(`+$${total}`);
+
+                // Check day completion
+                if (gameState.servedToday >= gameState.dayGoal) {
+                    setTimeout(endDay, 500);
+                }
+            } else {
+                gameState.reputation = Math.max(0, gameState.reputation - 3);
+                const idx = gameState.customers.indexOf(customer);
+                if (idx > -1) gameState.customers.splice(idx, 1);
+                showNotification('Wrong order! -3 Rep', true);
+            }
+
+            gameState.hasBread = false;
+            gameState.currentPrep = [];
+            gameState.isWrapped = false;
+            gameState.wrappedOrder = [];
+            updateUI();
+        }
+
+        function createMoneyEffect(x, y) {
+            for (let i = 0; i < 3; i++) {
+                setTimeout(() => {
+                    const m = document.createElement('div');
+                    m.className = 'money-float';
+                    m.textContent = '💵';
+                    m.style.left = (x + (Math.random() - 0.5) * 40) + 'px';
+                    m.style.top = y + 'px';
+                    document.body.appendChild(m);
+                    setTimeout(() => m.remove(), 1000);
+                }, i * 100);
+            }
+        }
+
+        function checkOrder(order, prep) {
+            const o = [...order].sort();
+            const p = [...prep].sort();
+            if (o.length !== p.length) return false;
+            for (let i = 0; i < o.length; i++) {
+                if (o[i] !== p[i]) return false;
+            }
+            return true;
+        }
+
+        function gameLoop() {
+            if (!gameState.dayActive) return;
+
+            gameState.customers.forEach((c, i) => {
+                const rate = gameState.upgrades.fasterCustomers ? 0.05 : 0.08;
+                c.patience -= rate;
+                if (c.patience <= 0) {
+                    gameState.customers.splice(i, 1);
+                    gameState.reputation = Math.max(0, gameState.reputation - 5);
+                    showNotification('Customer left!', true);
+                }
+            });
+            updateUI();
+        }
+
+        function spawnCustomer() {
+            const max = gameState.upgrades.moreCustomers ? 4 : 3;
+            if (gameState.customers.length >= max) return;
+
+            const possible = ['chicken', 'radish', 'pickles', 'cream'];
+            const size = Math.floor(Math.random() * 3) + 2;
+            const order = ['chicken'];
+
+            for (let i = 1; i < size; i++) {
+                order.push(possible[Math.floor(Math.random() * possible.length)]);
+            }
+
+            // Chance for jam if unlocked
+            let wantsJam = false;
+            if (gameState.upgrades.jamStation && Math.random() < 0.3) {
+                order.push('jam');
+                wantsJam = true;
+            }
+
+            gameState.customers.push({
+                id: Date.now(),
+                icon: customerIcons[Math.floor(Math.random() * customerIcons.length)],
+                order,
+                patience: 100,
+                wantsJam
+            });
+            updateUI();
+        }
+
+        function restockAll() {
+            if (gameState.money < 20) {
+                showNotification('Need $20!', true);
+                return;
+            }
+            const max = gameState.upgrades.biggerTray ? 30 : 20;
+            gameState.money -= 20;
+            gameState.ingredients.rawMeat = max;
+            gameState.ingredients.bread = max;
+            gameState.ingredients.radish = max;
+            gameState.ingredients.pickles = max;
+            gameState.ingredients.cream = max;
+            if (gameState.upgrades.jamStation) gameState.ingredients.jam = max;
+            showNotification('Restocked!');
+            updateUI();
+        }
+
+        function openShop() {
+            document.getElementById('shop-modal').classList.add('active');
+            renderUpgrades();
+        }
+
+        function closeShop() {
+            document.getElementById('shop-modal').classList.remove('active');
+        }
+
+        function buyUpgrade(id) {
+            const u = upgradesData.find(x => x.id === id);
+            if (!u || gameState.upgrades[id] || gameState.money < u.price) return;
+
+            gameState.money -= u.price;
+            gameState.upgrades[id] = true;
+
+            if (id === 'jamStation') {
+                gameState.ingredients.jam = 10;
+            }
+
+            showNotification(`Bought: ${u.name}`);
+            renderUpgrades();
+            updateUI();
+        }
+
+        function renderUpgrades() {
+            const c = document.getElementById('upgrades-list');
+            c.innerHTML = '';
+            upgradesData.forEach(u => {
+                const owned = gameState.upgrades[u.id];
+                const afford = gameState.money >= u.price;
+                c.innerHTML += `
+                    <div class="upgrade-card ${owned ? 'owned' : ''}">
+                        <div class="upgrade-icon">${u.icon}</div>
+                        <div class="upgrade-name">${u.name}</div>
+                        <div class="upgrade-desc">${u.desc}</div>
+                        <div class="upgrade-price">${owned ? 'OWNED' : '$' + u.price}</div>
+                        <button class="buy-btn ${owned ? 'owned' : ''}"
+                                onclick="buyUpgrade('${u.id}')"
+                                ${owned || !afford ? 'disabled' : ''}>
+                            ${owned ? '✓' : 'Buy'}
+                        </button>
+                    </div>
+                `;
+            });
+        }
+
+        function showNotification(msg, err = false) {
+            const n = document.createElement('div');
+            n.className = 'notification' + (err ? ' error' : '');
+            n.textContent = msg;
+            document.body.appendChild(n);
+            setTimeout(() => n.remove(), 3000);
+        }
+
+        function updateUI() {
+            document.getElementById('money').textContent = '$' + gameState.money;
+            document.getElementById('reputation').textContent = gameState.reputation;
+            document.getElementById('day-num').textContent = gameState.day;
+            document.getElementById('served-today').textContent = gameState.servedToday;
+            document.getElementById('day-goal').textContent = gameState.dayGoal;
+            document.getElementById('day-progress').style.width =
+                Math.min(100, (gameState.servedToday / gameState.dayGoal) * 100) + '%';
+
+            document.getElementById('raw-meat-count').textContent = gameState.ingredients.rawMeat;
+            document.getElementById('cut-meat-count').textContent = gameState.ingredients.cutMeat;
+            document.getElementById('meat-count').textContent = gameState.ingredients.cutMeat;
+            document.getElementById('bread-count').textContent = gameState.ingredients.bread;
+            document.getElementById('radish-count').textContent = gameState.ingredients.radish;
+            document.getElementById('pickles-count').textContent = gameState.ingredients.pickles;
+            document.getElementById('cream-count').textContent = gameState.ingredients.cream;
+
+            document.getElementById('cut-btn').disabled = gameState.ingredients.rawMeat <= 0;
+
+            document.getElementById('tray-bread').classList.toggle('disabled', gameState.ingredients.bread <= 0);
+            document.getElementById('tray-meat').classList.toggle('disabled', gameState.ingredients.cutMeat <= 0);
+            document.getElementById('tray-radish').classList.toggle('disabled', gameState.ingredients.radish <= 0);
+            document.getElementById('tray-pickles').classList.toggle('disabled', gameState.ingredients.pickles <= 0);
+            document.getElementById('tray-cream').classList.toggle('disabled', gameState.ingredients.cream <= 0);
+
+            const jamTray = document.getElementById('tray-jam');
+            if (gameState.upgrades.jamStation) {
+                jamTray.classList.remove('locked');
+                jamTray.classList.toggle('disabled', gameState.ingredients.jam <= 0);
+                document.getElementById('jam-status').textContent = gameState.ingredients.jam;
+                document.getElementById('jam-status').className = 'count';
+            }
+
+            const prep = document.getElementById('prep-contents');
+            if (gameState.isWrapped) {
+                prep.innerHTML = `
+                    <div class="wrapped-shawarma" onmousedown="startDragShawarma(event)" ontouchstart="startDragShawarma(event)">🌯</div>
+                    <div class="drag-hint">👆 Drag to customer!</div>
+                    <button class="clear-btn" onclick="clearPrep()">🗑️ Discard</button>
+                `;
+            } else if (gameState.hasBread) {
+                let h = '<div class="prep-base">🫓</div><div class="prep-ingredients">';
+                gameState.currentPrep.forEach((item, i) => {
+                    h += `<span class="prep-ingredient" onclick="removeFromPrep(${i})">${ingredientIcons[item]}</span>`;
+                });
+                h += `</div><div style="font-size:0.8em;color:#888;margin-top:8px">${gameState.currentPrep.length}/4</div>`;
+                h += '<div class="prep-actions">';
+                if (gameState.currentPrep.length > 0) h += `<button class="wrap-btn" onclick="wrapShawarma()">🌯 Wrap!</button>`;
+                h += `<button class="clear-btn" onclick="clearPrep()">🗑️ Clear</button></div>`;
+                prep.innerHTML = h;
+            } else {
+                prep.innerHTML = '<span class="prep-hint">Drag 🫓 bread here</span>';
+            }
+
+            const list = document.getElementById('customers-list');
+            list.innerHTML = '';
+            gameState.customers.forEach(c => {
+                const pClass = c.patience > 60 ? '' : c.patience > 30 ? 'patience-medium' : 'patience-low';
+                list.innerHTML += `
+                    <div class="customer" data-id="${c.id}">
+                        <div class="customer-header">
+                            <span class="customer-icon">${c.icon}</span>
+                        </div>
+                        <div class="customer-patience">
+                            <div class="patience-fill ${pClass}" style="width:${c.patience}%"></div>
+                        </div>
+                        <div class="customer-order">
+                            ${c.order.map(item => {
+                                const has = gameState.currentPrep.includes(item) || gameState.wrappedOrder.includes(item);
+                                const isJam = item === 'jam';
+                                return `<span class="order-item ${has ? 'has' : ''} ${isJam ? 'jam-bonus' : ''}">${ingredientIcons[item]}</span>`;
+                            }).join('')}
+                        </div>
+                    </div>
+                `;
+            });
+
+            if (gameState.customers.length === 0 && gameState.dayActive) {
+                list.innerHTML = '<div style="text-align:center;color:#666;padding:20px">Waiting...</div>';
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>

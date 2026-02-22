@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Click Empire</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0c0c1e 0%, #1a1a3e 50%, #0f2027 100%);
+            min-height: 100vh;
+            color: #fff;
+            overflow-x: hidden;
+        }
+
+        .game-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            font-size: 3rem;
+            background: linear-gradient(45deg, #ffd700, #ffaa00);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 0 0 30px rgba(255, 215, 0, 0.3);
+        }
+
+        .stats-bar {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .stat {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px 25px;
+            border-radius: 15px;
+            text-align: center;
+            min-width: 150px;
+        }
+
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #ffd700;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: #aaa;
+            margin-top: 5px;
+        }
+
+        .main-content {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+            justify-content: center;
+            width: 100%;
+        }
+
+        .click-area {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .click-button {
+            width: 250px;
+            height: 250px;
+            border-radius: 50%;
+            border: none;
+            background: radial-gradient(circle at 30% 30%, #ffd700, #ff8c00);
+            cursor: pointer;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #1a1a2e;
+            box-shadow:
+                0 10px 30px rgba(255, 215, 0, 0.4),
+                inset 0 -5px 20px rgba(0, 0, 0, 0.2);
+            transition: all 0.1s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .click-button:hover {
+            transform: scale(1.05);
+            box-shadow:
+                0 15px 40px rgba(255, 215, 0, 0.5),
+                inset 0 -5px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .click-button:active {
+            transform: scale(0.95);
+            box-shadow:
+                0 5px 20px rgba(255, 215, 0, 0.3),
+                inset 0 5px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .click-button::before {
+            content: '💰';
+            font-size: 4rem;
+            display: block;
+            margin-bottom: 10px;
+        }
+
+        .floating-text {
+            position: absolute;
+            pointer-events: none;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #ffd700;
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.8);
+            animation: float-up 1s ease-out forwards;
+        }
+
+        @keyframes float-up {
+            0% {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+            100% {
+                opacity: 0;
+                transform: translateY(-100px) scale(1.5);
+            }
+        }
+
+        .upgrades-panel {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            padding: 25px;
+            min-width: 350px;
+            max-width: 400px;
+        }
+
+        .panel-title {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            color: #ffd700;
+            text-align: center;
+            border-bottom: 2px solid rgba(255, 215, 0, 0.3);
+            padding-bottom: 10px;
+        }
+
+        .upgrade-item {
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s ease;
+        }
+
+        .upgrade-item:hover {
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        .upgrade-info {
+            flex: 1;
+        }
+
+        .upgrade-name {
+            font-size: 1.1rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .upgrade-desc {
+            font-size: 0.85rem;
+            color: #aaa;
+            margin-bottom: 5px;
+        }
+
+        .upgrade-owned {
+            font-size: 0.9rem;
+            color: #00cec9;
+        }
+
+        .upgrade-btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-width: 100px;
+        }
+
+        .upgrade-btn.affordable {
+            background: linear-gradient(45deg, #00b894, #00cec9);
+            color: #fff;
+        }
+
+        .upgrade-btn.affordable:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 184, 148, 0.4);
+        }
+
+        .upgrade-btn.expensive {
+            background: rgba(255, 255, 255, 0.1);
+            color: #666;
+            cursor: not-allowed;
+        }
+
+        .achievements-panel {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            padding: 25px;
+            min-width: 300px;
+            max-width: 350px;
+        }
+
+        .achievement {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            margin-bottom: 10px;
+            opacity: 0.4;
+            transition: all 0.3s ease;
+        }
+
+        .achievement.unlocked {
+            opacity: 1;
+            background: rgba(255, 215, 0, 0.1);
+            border: 1px solid rgba(255, 215, 0, 0.3);
+        }
+
+        .achievement-icon {
+            font-size: 2rem;
+        }
+
+        .achievement-info h4 {
+            font-size: 1rem;
+            margin-bottom: 3px;
+        }
+
+        .achievement-info p {
+            font-size: 0.8rem;
+            color: #888;
+        }
+
+        .prestige-section {
+            margin-top: 20px;
+            text-align: center;
+            padding: 20px;
+            background: rgba(147, 51, 234, 0.2);
+            border-radius: 15px;
+            border: 1px solid rgba(147, 51, 234, 0.4);
+        }
+
+        .prestige-btn {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            background: linear-gradient(45deg, #9333ea, #c084fc);
+            color: #fff;
+            transition: all 0.3s ease;
+            margin-top: 10px;
+        }
+
+        .prestige-btn:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 20px rgba(147, 51, 234, 0.5);
+        }
+
+        .prestige-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .multiplier-display {
+            color: #c084fc;
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+        }
+
+        .save-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        .save-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .save-btn.save {
+            background: #3498db;
+            color: #fff;
+        }
+
+        .save-btn.reset {
+            background: #e74c3c;
+            color: #fff;
+        }
+
+        .save-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .upgrades-panel, .achievements-panel {
+                min-width: 100%;
+            }
+
+            .click-button {
+                width: 200px;
+                height: 200px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-wrapper">
+        <header>
+            <h1>💎 Click Empire 💎</h1>
+        </header>
+
+        <div class="stats-bar">
+            <div class="stat">
+                <div class="stat-value" id="points">0</div>
+                <div class="stat-label">Points</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="perClick">1</div>
+                <div class="stat-label">Per Click</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="perSecond">0</div>
+                <div class="stat-label">Per Second</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="totalClicks">0</div>
+                <div class="stat-label">Total Clicks</div>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="achievements-panel">
+                <h2 class="panel-title">🏆 Achievements</h2>
+                <div id="achievements-list"></div>
+            </div>
+
+            <div class="click-area">
+                <button class="click-button" id="clickBtn">CLICK ME!</button>
+
+                <div class="prestige-section">
+                    <div class="multiplier-display">✨ Prestige Multiplier: <span id="prestigeMultiplier">1.0</span>x</div>
+                    <p style="font-size: 0.9rem; color: #aaa; margin-bottom: 10px;">
+                        Reset progress for a permanent multiplier!<br>
+                        Need: 10,000 points
+                    </p>
+                    <button class="prestige-btn" id="prestigeBtn" disabled>
+                        Prestige (+<span id="prestigeGain">0.0</span>x)
+                    </button>
+                </div>
+
+                <div class="save-buttons">
+                    <button class="save-btn save" onclick="saveGame()">💾 Save</button>
+                    <button class="save-btn reset" onclick="resetGame()">🔄 Reset</button>
+                </div>
+            </div>
+
+            <div class="upgrades-panel">
+                <h2 class="panel-title">⬆️ Upgrades</h2>
+                <div id="upgrades-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Game State
+        let gameState = {
+            points: 0,
+            totalPoints: 0,
+            totalClicks: 0,
+            clickPower: 1,
+            pointsPerSecond: 0,
+            prestigeMultiplier: 1,
+            upgrades: {},
+            achievements: {}
+        };
+
+        // Upgrades Configuration
+        const upgrades = [
+            {
+                id: 'clickPower1',
+                name: '💪 Stronger Clicks',
+                desc: '+1 point per click',
+                baseCost: 10,
+                costMultiplier: 1.5,
+                effect: () => { gameState.clickPower += 1; },
+                type: 'click'
+            },
+            {
+                id: 'clickPower2',
+                name: '⚡ Power Clicks',
+                desc: '+5 points per click',
+                baseCost: 100,
+                costMultiplier: 1.8,
+                effect: () => { gameState.clickPower += 5; },
+                type: 'click'
+            },
+            {
+                id: 'clickPower3',
+                name: '🔥 Mega Clicks',
+                desc: '+25 points per click',
+                baseCost: 1000,
+                costMultiplier: 2,
+                effect: () => { gameState.clickPower += 25; },
+                type: 'click'
+            },
+            {
+                id: 'auto1',
+                name: '🤖 Auto Clicker',
+                desc: '+1 point per second',
+                baseCost: 50,
+                costMultiplier: 1.4,
+                effect: () => { gameState.pointsPerSecond += 1; },
+                type: 'auto'
+            },
+            {
+                id: 'auto2',
+                name: '🏭 Point Factory',
+                desc: '+5 points per second',
+                baseCost: 250,
+                costMultiplier: 1.6,
+                effect: () => { gameState.pointsPerSecond += 5; },
+                type: 'auto'
+            },
+            {
+                id: 'auto3',
+                name: '🚀 Point Generator',
+                desc: '+20 points per second',
+                baseCost: 1000,
+                costMultiplier: 1.8,
+                effect: () => { gameState.pointsPerSecond += 20; },
+                type: 'auto'
+            },
+            {
+                id: 'auto4',
+                name: '🌟 Point Singularity',
+                desc: '+100 points per second',
+                baseCost: 5000,
+                costMultiplier: 2,
+                effect: () => { gameState.pointsPerSecond += 100; },
+                type: 'auto'
+            }
+        ];
+
+        // Achievements Configuration
+        const achievements = [
+            { id: 'clicks10', name: 'Getting Started', desc: 'Click 10 times', icon: '🖱️', check: () => gameState.totalClicks >= 10 },
+            { id: 'clicks100', name: 'Click Enthusiast', desc: 'Click 100 times', icon: '👆', check: () => gameState.totalClicks >= 100 },
+            { id: 'clicks1000', name: 'Click Master', desc: 'Click 1,000 times', icon: '🏅', check: () => gameState.totalClicks >= 1000 },
+            { id: 'points100', name: 'First Hundred', desc: 'Earn 100 total points', icon: '💵', check: () => gameState.totalPoints >= 100 },
+            { id: 'points1000', name: 'Thousandaire', desc: 'Earn 1,000 total points', icon: '💰', check: () => gameState.totalPoints >= 1000 },
+            { id: 'points10000', name: 'Point Tycoon', desc: 'Earn 10,000 total points', icon: '💎', check: () => gameState.totalPoints >= 10000 },
+            { id: 'points100000', name: 'Point Emperor', desc: 'Earn 100,000 total points', icon: '👑', check: () => gameState.totalPoints >= 100000 },
+            { id: 'prestige1', name: 'Fresh Start', desc: 'Prestige once', icon: '✨', check: () => gameState.prestigeMultiplier > 1 },
+        ];
+
+        // DOM Elements
+        const pointsDisplay = document.getElementById('points');
+        const perClickDisplay = document.getElementById('perClick');
+        const perSecondDisplay = document.getElementById('perSecond');
+        const totalClicksDisplay = document.getElementById('totalClicks');
+        const clickBtn = document.getElementById('clickBtn');
+        const upgradesList = document.getElementById('upgrades-list');
+        const achievementsList = document.getElementById('achievements-list');
+        const prestigeBtn = document.getElementById('prestige-btn');
+        const prestigeMultiplierDisplay = document.getElementById('prestigeMultiplier');
+        const prestigeGainDisplay = document.getElementById('prestigeGain');
+
+        // Format large numbers
+        function formatNumber(num) {
+            if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
+            if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
+            if (num >= 1e3) return (num / 1e3).toFixed(2) + 'K';
+            return Math.floor(num).toString();
+        }
+
+        // Calculate upgrade cost
+        function getUpgradeCost(upgrade) {
+            const owned = gameState.upgrades[upgrade.id] || 0;
+            return Math.floor(upgrade.baseCost * Math.pow(upgrade.costMultiplier, owned));
+        }
+
+        // Click handler
+        function handleClick(e) {
+            const earned = gameState.clickPower * gameState.prestigeMultiplier;
+            gameState.points += earned;
+            gameState.totalPoints += earned;
+            gameState.totalClicks++;
+
+            // Create floating text
+            createFloatingText(e.clientX, e.clientY, '+' + formatNumber(earned));
+
+            updateDisplay();
+            checkAchievements();
+        }
+
+        // Create floating text animation
+        function createFloatingText(x, y, text) {
+            const floatingText = document.createElement('div');
+            floatingText.className = 'floating-text';
+            floatingText.textContent = text;
+            floatingText.style.left = x + 'px';
+            floatingText.style.top = y + 'px';
+            document.body.appendChild(floatingText);
+
+            setTimeout(() => floatingText.remove(), 1000);
+        }
+
+        // Buy upgrade
+        function buyUpgrade(upgradeId) {
+            const upgrade = upgrades.find(u => u.id === upgradeId);
+            const cost = getUpgradeCost(upgrade);
+
+            if (gameState.points >= cost) {
+                gameState.points -= cost;
+                gameState.upgrades[upgradeId] = (gameState.upgrades[upgradeId] || 0) + 1;
+                upgrade.effect();
+                updateDisplay();
+                renderUpgrades();
+            }
+        }
+
+        // Prestige
+        function prestige() {
+            if (gameState.totalPoints >= 10000) {
+                const gain = Math.floor(Math.sqrt(gameState.totalPoints / 10000) * 10) / 10;
+                gameState.prestigeMultiplier += gain;
+
+                // Reset progress but keep prestige multiplier and achievements
+                gameState.points = 0;
+                gameState.totalPoints = 0;
+                gameState.totalClicks = 0;
+                gameState.clickPower = 1;
+                gameState.pointsPerSecond = 0;
+                gameState.upgrades = {};
+
+                updateDisplay();
+                renderUpgrades();
+                checkAchievements();
+            }
+        }
+
+        // Update display
+        function updateDisplay() {
+            pointsDisplay.textContent = formatNumber(gameState.points);
+            perClickDisplay.textContent = formatNumber(gameState.clickPower * gameState.prestigeMultiplier);
+            perSecondDisplay.textContent = formatNumber(gameState.pointsPerSecond * gameState.prestigeMultiplier);
+            totalClicksDisplay.textContent = formatNumber(gameState.totalClicks);
+            prestigeMultiplierDisplay.textContent = gameState.prestigeMultiplier.toFixed(1);
+
+            // Update prestige button
+            const prestigeBtn = document.getElementById('prestigeBtn');
+            const gain = Math.floor(Math.sqrt(gameState.totalPoints / 10000) * 10) / 10;
+            prestigeGainDisplay.textContent = gain.toFixed(1);
+            prestigeBtn.disabled = gameState.totalPoints < 10000;
+        }
+
+        // Render upgrades
+        function renderUpgrades() {
+            upgradesList.innerHTML = '';
+
+            upgrades.forEach(upgrade => {
+                const cost = getUpgradeCost(upgrade);
+                const owned = gameState.upgrades[upgrade.id] || 0;
+                const affordable = gameState.points >= cost;
+
+                const upgradeEl = document.createElement('div');
+                upgradeEl.className = 'upgrade-item';
+                upgradeEl.innerHTML = `
+                    <div class="upgrade-info">
+                        <div class="upgrade-name">${upgrade.name}</div>
+                        <div class="upgrade-desc">${upgrade.desc}</div>
+                        <div class="upgrade-owned">Owned: ${owned}</div>
+                    </div>
+                    <button class="upgrade-btn ${affordable ? 'affordable' : 'expensive'}"
+                            onclick="buyUpgrade('${upgrade.id}')"
+                            ${!affordable ? 'disabled' : ''}>
+                        ${formatNumber(cost)} 💰
+                    </button>
+                `;
+                upgradesList.appendChild(upgradeEl);
+            });
+        }
+
+        // Render achievements
+        function renderAchievements() {
+            achievementsList.innerHTML = '';
+
+            achievements.forEach(achievement => {
+                const unlocked = gameState.achievements[achievement.id];
+                const achievementEl = document.createElement('div');
+                achievementEl.className = `achievement ${unlocked ? 'unlocked' : ''}`;
+                achievementEl.innerHTML = `
+                    <div class="achievement-icon">${achievement.icon}</div>
+                    <div class="achievement-info">
+                        <h4>${achievement.name}</h4>
+                        <p>${achievement.desc}</p>
+                    </div>
+                `;
+                achievementsList.appendChild(achievementEl);
+            });
+        }
+
+        // Check achievements
+        function checkAchievements() {
+            let newAchievement = false;
+
+            achievements.forEach(achievement => {
+                if (!gameState.achievements[achievement.id] && achievement.check()) {
+                    gameState.achievements[achievement.id] = true;
+                    newAchievement = true;
+                }
+            });
+
+            if (newAchievement) {
+                renderAchievements();
+            }
+        }
+
+        // Auto points (passive income)
+        function gameLoop() {
+            if (gameState.pointsPerSecond > 0) {
+                const earned = (gameState.pointsPerSecond * gameState.prestigeMultiplier) / 10;
+                gameState.points += earned;
+                gameState.totalPoints += earned;
+                updateDisplay();
+                checkAchievements();
+            }
+            renderUpgrades(); // Update affordability
+        }
+
+        // Save game
+        function saveGame() {
+            localStorage.setItem('clickerSave', JSON.stringify(gameState));
+            alert('Game saved!');
+        }
+
+        // Load game
+        function loadGame() {
+            const save = localStorage.getItem('clickerSave');
+            if (save) {
+                gameState = JSON.parse(save);
+            }
+        }
+
+        // Reset game
+        function resetGame() {
+            if (confirm('Are you sure you want to reset ALL progress?')) {
+                localStorage.removeItem('clickerSave');
+                gameState = {
+                    points: 0,
+                    totalPoints: 0,
+                    totalClicks: 0,
+                    clickPower: 1,
+                    pointsPerSecond: 0,
+                    prestigeMultiplier: 1,
+                    upgrades: {},
+                    achievements: {}
+                };
+                updateDisplay();
+                renderUpgrades();
+                renderAchievements();
+            }
+        }
+
+        // Initialize
+        clickBtn.addEventListener('click', handleClick);
+        document.getElementById('prestigeBtn').addEventListener('click', prestige);
+
+        loadGame();
+        updateDisplay();
+        renderUpgrades();
+        renderAchievements();
+
+        // Game loop (runs 10 times per second)
+        setInterval(gameLoop, 100);
+
+        // Auto-save every 30 seconds
+        setInterval(saveGame, 30000);
+    </script>
+</body>
+</html>

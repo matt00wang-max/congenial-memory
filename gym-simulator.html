@@ -1,0 +1,1169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gym Simulator - Get Swole!</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#1a1a2e; color:#fff; font-family:'Segoe UI',Arial,sans-serif; overflow:hidden; user-select:none; }
+canvas { display:block; }
+#ui { position:fixed; top:0; left:0; right:0; pointer-events:none; z-index:10; }
+#hud { display:flex; justify-content:space-between; padding:12px 20px; }
+#hud-left, #hud-right { display:flex; flex-direction:column; gap:6px; }
+.hud-label { color:#fff; font-size:13px; font-weight:bold; text-shadow:1px 1px 2px #000; }
+.hud-bar { width:220px; height:18px; background:rgba(0,0,0,0.6); border:2px solid rgba(255,255,255,0.2); border-radius:4px; overflow:hidden; }
+.hud-bar-fill { height:100%; transition:width 0.3s; }
+.stamina-fill { background:linear-gradient(90deg,#f39c12,#f1c40f); }
+.xp-fill { background:linear-gradient(90deg,#9b59b6,#8e44ad); }
+#day-count { color:#f1c40f; font-size:20px; font-weight:bold; text-shadow:2px 2px 4px #000; text-align:right; }
+#level-info { color:#9b59b6; font-size:14px; font-weight:bold; text-shadow:1px 1px 2px #000; text-align:right; }
+#stats-panel { position:fixed; right:15px; top:100px; background:rgba(0,0,0,0.7); border:1px solid rgba(255,255,255,0.15); border-radius:10px; padding:15px; width:180px; z-index:10; pointer-events:none; }
+#stats-panel h3 { font-size:13px; color:#f1c40f; margin-bottom:8px; text-align:center; }
+.stat-row { display:flex; justify-content:space-between; font-size:11px; margin-bottom:5px; color:#ccc; }
+.stat-row .val { color:#2ecc71; font-weight:bold; }
+#prompt { position:fixed; bottom:80px; left:50%; transform:translateX(-50%); color:#fff; font-size:16px; font-weight:bold; text-shadow:2px 2px 4px #000; z-index:10; pointer-events:none; opacity:0; transition:opacity 0.2s; background:rgba(0,0,0,0.6); padding:10px 22px; border-radius:10px; text-align:center; }
+#start-screen { position:fixed; inset:0; background:rgba(0,0,0,0.95); display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:200; }
+#start-screen h1 { font-size:52px; color:#f1c40f; margin-bottom:8px; }
+#start-screen .sub { font-size:20px; color:#aaa; margin-bottom:30px; }
+#start-screen .controls { font-size:14px; color:#888; margin-bottom:25px; text-align:center; line-height:2.2; }
+#start-screen button { padding:16px 50px; font-size:22px; background:#e74c3c; color:#fff; border:none; border-radius:8px; cursor:pointer; font-weight:bold; pointer-events:all; }
+#start-screen button:hover { background:#c0392b; }
+#sleep-overlay { position:fixed; inset:0; background:rgba(0,0,0,0); z-index:150; display:none; pointer-events:none; transition:background 1s; }
+#sleep-text { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); color:#fff; font-size:32px; font-weight:bold; z-index:151; display:none; text-shadow:2px 2px 8px #000; }
+#toast { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); color:#2ecc71; font-size:24px; font-weight:bold; text-shadow:2px 2px 6px #000; z-index:160; opacity:0; transition:opacity 0.3s; pointer-events:none; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="ui">
+  <div id="hud">
+    <div id="hud-left">
+      <div class="hud-label" id="stamina-label">Stamina: 100/100</div>
+      <div class="hud-bar"><div class="hud-bar-fill stamina-fill" id="stamina-bar" style="width:100%"></div></div>
+      <div class="hud-label" id="xp-label">XP: 0/100</div>
+      <div class="hud-bar"><div class="hud-bar-fill xp-fill" id="xp-bar" style="width:0%"></div></div>
+    </div>
+    <div id="hud-right">
+      <div id="day-count">Day 1</div>
+      <div id="level-info">Level 1 - Beginner</div>
+    </div>
+  </div>
+</div>
+<div id="stats-panel">
+  <h3>MUSCLE STATS</h3>
+  <div id="stats-content"></div>
+</div>
+<div id="prompt"></div>
+<div id="sleep-overlay"></div>
+<div id="sleep-text"></div>
+<div id="toast"></div>
+
+<div id="start-screen">
+  <h1>GYM SIMULATOR</h1>
+  <div class="sub">Get Swole or Go Home!</div>
+  <div class="controls">
+    WASD / Arrow Keys - Walk around the gym<br>
+    E - Use equipment / interact<br>
+    Bed - Sleep to recover stamina<br>
+    Medicine Cabinet - 2x growth, +stamina, faster regen for 30s
+  </div>
+  <button onclick="startGame()">START TRAINING</button>
+</div>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+window.addEventListener('resize', () => { canvas.width=window.innerWidth; canvas.height=window.innerHeight; });
+
+// ─── Game State ───
+let game, player, keys={}, gymEquipment, npcs;
+
+const TILE = 40;
+const GYM_W = 800, GYM_H = 600;
+
+const MUSCLE_GROUPS = {
+  chest:    { name:'Chest',     size:0.3, xp:0, color:'#e74c3c' },
+  back:     { name:'Back',      size:0.3, xp:0, color:'#3498db' },
+  arms:     { name:'Arms',      size:0.3, xp:0, color:'#2ecc71' },
+  shoulders:{ name:'Shoulders', size:0.3, xp:0, color:'#f39c12' },
+  legs:     { name:'Legs',      size:0.3, xp:0, color:'#9b59b6' },
+  abs:      { name:'Abs',       size:0.3, xp:0, color:'#1abc9c' }
+};
+
+const EQUIPMENT = [
+  { name:'Bench Press',   muscle:'chest',     x:150, y:180, w:70, h:40, staminaCost:15, xpGain:12, repsNeeded:10, color:'#8B4513' },
+  { name:'Pull-Up Bar',   muscle:'back',      x:300, y:100, w:50, h:50, staminaCost:18, xpGain:14, repsNeeded:8,  color:'#555' },
+  { name:'Dumbbell Rack', muscle:'arms',      x:450, y:180, w:60, h:40, staminaCost:12, xpGain:10, repsNeeded:12, color:'#666' },
+  { name:'Shoulder Press', muscle:'shoulders', x:600, y:180, w:60, h:45, staminaCost:16, xpGain:13, repsNeeded:10, color:'#777' },
+  { name:'Squat Rack',    muscle:'legs',      x:150, y:380, w:60, h:60, staminaCost:20, xpGain:16, repsNeeded:8,  color:'#8B4513' },
+  { name:'Ab Crunch Bench',muscle:'abs',      x:450, y:400, w:70, h:35, staminaCost:10, xpGain:8,  repsNeeded:15, color:'#996633' },
+  { name:'Treadmill',     muscle:'legs',      x:600, y:400, w:50, h:60, staminaCost:14, xpGain:11, repsNeeded:20, color:'#444' },
+  { name:'Cable Machine', muscle:'back',      x:300, y:380, w:50, h:50, staminaCost:15, xpGain:12, repsNeeded:10, color:'#555' }
+];
+
+const BED = { x:680, y:80, w:80, h:50 };
+const MEDICINE_CABINET = { x:80, y:80, w:50, h:50 };
+
+const LEVEL_NAMES = ['Beginner','Novice','Regular','Athlete','Beast','Champion','Legend','Titan','Demigod','SWOLE GOD'];
+
+function startGame() {
+  document.getElementById('start-screen').style.display='none';
+  initGame();
+}
+
+function initGame() {
+  // Reset muscles
+  for(const k in MUSCLE_GROUPS) { MUSCLE_GROUPS[k].size=0.3; MUSCLE_GROUPS[k].xp=0; }
+
+  game = {
+    running:true, day:1, stamina:100, maxStamina:100,
+    xp:0, xpToLevel:100, level:1,
+    workoutAnim:0,
+    sleeping:false, sleepTimer:0,
+    totalWorkouts:0,
+    medicineTimer:0,    // time left on medicine (ms)
+    medicineDoses:0,    // how many times medicine used (permanent bonus)
+    medicineCooldown:0  // can't spam medicine
+  };
+
+  player = {
+    x:400, y:300, r:16, speed:3, angle:0,
+    vx:0, vy:0
+  };
+
+  // NPCs doing their own thing
+  npcs = [];
+  for(let i=0;i<4;i++){
+    npcs.push({
+      x:100+Math.random()*600, y:100+Math.random()*400,
+      r:14, angle:Math.random()*Math.PI*2,
+      color:`hsl(${Math.random()*360},50%,50%)`,
+      muscles:{ chest:0.6+Math.random()*0.8, arms:0.6+Math.random()*0.8, legs:0.5+Math.random()*0.5, shoulders:0.5+Math.random()*0.5, back:0.5+Math.random()*0.5, abs:0.4+Math.random()*0.4 },
+      moveTimer:0, moveAngle:Math.random()*Math.PI*2,
+      workingOut:false, workoutTimer:0, targetEquip:null,
+      name:['Chad','Brad','Mike','Jake'][i]
+    });
+  }
+
+  requestAnimationFrame(gameLoop);
+}
+
+// ─── Input ───
+document.addEventListener('keydown', e => {
+  keys[e.key.toLowerCase()] = true;
+  if(e.key.toLowerCase() === 'e') interact();
+});
+document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+function interact() {
+  if(game.sleeping) return;
+
+  // Check medicine cabinet
+  const medDist = Math.sqrt((player.x-(MEDICINE_CABINET.x+MEDICINE_CABINET.w/2))**2 + (player.y-(MEDICINE_CABINET.y+MEDICINE_CABINET.h/2))**2);
+  if(medDist < 60) {
+    useMedicine();
+    return;
+  }
+
+  // Check bed
+  const bedDist = Math.sqrt((player.x-(BED.x+BED.w/2))**2 + (player.y-(BED.y+BED.h/2))**2);
+  if(bedDist < 60) {
+    goToSleep();
+    return;
+  }
+
+  // Check equipment — instant workout, no reps
+  for(const eq of EQUIPMENT) {
+    const d = Math.sqrt((player.x-(eq.x+eq.w/2))**2 + (player.y-(eq.y+eq.h/2))**2);
+    if(d < 55) {
+      if(game.stamina < eq.staminaCost) {
+        showToast('Too tired! Go sleep!');
+        return;
+      }
+      doWorkout(eq);
+      return;
+    }
+  }
+}
+
+function doWorkout(eq) {
+  game.stamina = Math.max(0, game.stamina - eq.staminaCost);
+  const muscle = MUSCLE_GROUPS[eq.muscle];
+
+  // Grow the muscle — big and fast! Medicine doubles growth + permanent dose bonus
+  const medBoost = game.medicineTimer > 0 ? 2.0 : 1.0;
+  const doseBonus = 1 + game.medicineDoses * 0.05; // each dose gives permanent 5% bonus
+  const growAmount = (0.12 + (game.level * 0.02)) * medBoost * doseBonus;
+  muscle.size += growAmount;
+  muscle.xp += eq.xpGain * medBoost;
+
+  // Brief workout animation
+  game.workoutAnim = performance.now();
+
+  // Global XP
+  game.xp += eq.xpGain;
+  if(game.xp >= game.xpToLevel) {
+    game.xp -= game.xpToLevel;
+    game.level++;
+    game.xpToLevel = Math.floor(game.xpToLevel * 1.4);
+    game.maxStamina += 10;
+    showToast('LEVEL UP! Level ' + game.level + '!');
+  }
+
+  game.totalWorkouts++;
+  showToast('+' + eq.xpGain + ' XP! ' + muscle.name + ' +' + Math.round(growAmount*100) + '%!');
+}
+
+function goToSleep() {
+  game.sleeping = true;
+  game.sleepTimer = 0;
+  document.getElementById('sleep-overlay').style.display='block';
+  document.getElementById('sleep-text').style.display='block';
+  setTimeout(() => {
+    document.getElementById('sleep-overlay').style.background='rgba(0,0,0,0.95)';
+  }, 50);
+}
+
+function wakeUp() {
+  game.sleeping = false;
+  game.day++;
+  game.stamina = game.maxStamina;
+  // Slight overnight muscle protein synthesis bonus
+  for(const k in MUSCLE_GROUPS) {
+    if(MUSCLE_GROUPS[k].size > 0.3) {
+      MUSCLE_GROUPS[k].size += 0.03;
+    }
+  }
+  document.getElementById('sleep-overlay').style.background='rgba(0,0,0,0)';
+  setTimeout(() => {
+    document.getElementById('sleep-overlay').style.display='none';
+    document.getElementById('sleep-text').style.display='none';
+  }, 1000);
+  showToast('Day ' + game.day + ' - Feeling refreshed!');
+}
+
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.opacity = '1';
+  setTimeout(() => el.style.opacity='0', 1500);
+}
+
+function useMedicine() {
+  if(game.medicineCooldown > 0) {
+    showToast('Medicine on cooldown! Wait...');
+    return;
+  }
+  // Medicine effects: restore 50 stamina, 30s of 2x growth + faster training
+  game.stamina = Math.min(game.maxStamina, game.stamina + 50);
+  game.medicineTimer = 30000; // 30 seconds of boosted training
+  game.medicineDoses++;
+  game.medicineCooldown = 60000; // 60 second cooldown
+  showToast('MEDICINE! +50 Stamina, 2x Growth for 30s!');
+}
+
+// ─── NPC AI ───
+function updateNPC(npc, dt) {
+  npc.moveTimer -= dt;
+  if(npc.moveTimer <= 0) {
+    npc.moveAngle = Math.random()*Math.PI*2;
+    npc.moveTimer = 2000+Math.random()*3000;
+
+    // Sometimes go to equipment
+    if(!npc.workingOut && Math.random()<0.3) {
+      npc.targetEquip = EQUIPMENT[Math.floor(Math.random()*EQUIPMENT.length)];
+    }
+  }
+
+  if(npc.workingOut) {
+    npc.workoutTimer -= dt;
+    if(npc.workoutTimer <= 0) {
+      npc.workingOut = false;
+      // NPC muscles grow too
+      if(npc.targetEquip) {
+        const m = npc.targetEquip.muscle;
+        if(npc.muscles[m] !== undefined) npc.muscles[m] += 0.06;
+      }
+    }
+    return;
+  }
+
+  if(npc.targetEquip) {
+    const tx=npc.targetEquip.x+npc.targetEquip.w/2, ty=npc.targetEquip.y+npc.targetEquip.h/2;
+    const d = Math.sqrt((npc.x-tx)**2+(npc.y-ty)**2);
+    if(d < 30) {
+      npc.workingOut = true;
+      npc.workoutTimer = 3000+Math.random()*4000;
+      npc.targetEquip = null;
+    } else {
+      const a = Math.atan2(ty-npc.y, tx-npc.x);
+      npc.x += Math.cos(a)*1.5;
+      npc.y += Math.sin(a)*1.5;
+      npc.angle = a;
+    }
+  } else {
+    npc.x += Math.cos(npc.moveAngle)*0.8;
+    npc.y += Math.sin(npc.moveAngle)*0.8;
+  }
+
+  // Keep in gym
+  npc.x = Math.max(50+npc.r, Math.min(GYM_W+50-npc.r, npc.x));
+  npc.y = Math.max(50+npc.r, Math.min(GYM_H+50-npc.r, npc.y));
+}
+
+// ─── Draw character with variable muscle sizes ───
+function drawCharacter(x, y, angle, r, muscles, isPlayer, workingOut) {
+  ctx.save();
+  ctx.translate(x, y);
+
+  // Muscle values (0.3 = skinny start, grows from there)
+  const chest = muscles.chest || 0.3;
+  const arms = muscles.arms || 0.3;
+  const legs = muscles.legs || 0.3;
+  const shoulders = muscles.shoulders || 0.3;
+  const abs = muscles.abs || 0.3;
+  const back = muscles.back || 0.3;
+
+  // Skin color
+  const skinColor = isPlayer ? '#f4d03f' : '#fad390';
+  const skinDark = isPlayer ? '#e6c42f' : '#f0c880';
+  const skinLight = isPlayer ? '#f7dc6f' : '#fce5b0';
+
+  // Overall muscularity for shared details
+  const avgMuscle = (chest+arms+legs+shoulders+abs+back)/6;
+
+  // Shadow (scales with size)
+  ctx.fillStyle='rgba(0,0,0,0.2)';
+  ctx.beginPath();
+  ctx.ellipse(0, r*1.5+legs*10, r*0.5+chest*5, 3+avgMuscle, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // === LEGS ===
+  const legW = 2 + legs*7;
+  const legH = 8 + legs*12;
+  const legColor = isPlayer ? '#2980b9' : '#555';
+  const legDark = isPlayer ? '#2471a3' : '#444';
+  ctx.fillStyle = legColor;
+
+  for(let side=-1;side<=1;side+=2) {
+    const lx = side*r*0.3;
+    // Main thigh shape
+    ctx.fillStyle = legColor;
+    ctx.beginPath();
+    ctx.ellipse(lx, r*0.6+legH*0.35, legW/2, legH*0.4, 0, 0, Math.PI*2);
+    ctx.fill();
+
+    // Quad teardrop (inner quad, VMO) — visible at medium size
+    if(legs > 0.5) {
+      ctx.fillStyle = legDark;
+      const vmoSize = Math.min(1, (legs-0.3)*1.5);
+      ctx.beginPath();
+      ctx.ellipse(lx+side*legW*0.15, r*0.6+legH*0.5, legW*0.25*vmoSize, legH*0.18*vmoSize, 0, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    // Outer quad sweep line
+    if(legs > 0.6) {
+      ctx.strokeStyle='rgba(0,0,0,0.12)'; ctx.lineWidth=1;
+      ctx.beginPath();
+      ctx.moveTo(lx-side*legW*0.05, r*0.6+legH*0.1);
+      ctx.quadraticCurveTo(lx-side*legW*0.45, r*0.6+legH*0.4, lx-side*legW*0.05, r*0.6+legH*0.7);
+      ctx.stroke();
+    }
+
+    // Rectus femoris center line
+    if(legs > 0.8) {
+      ctx.strokeStyle='rgba(0,0,0,0.08)'; ctx.lineWidth=0.8;
+      ctx.beginPath();
+      ctx.moveTo(lx, r*0.6+legH*0.05);
+      ctx.lineTo(lx, r*0.6+legH*0.55);
+      ctx.stroke();
+    }
+
+    // Lower leg / calf
+    ctx.fillStyle = legColor;
+    ctx.beginPath();
+    ctx.ellipse(lx, r*0.6+legH*0.7, legW*0.35, legH*0.3, 0, 0, Math.PI*2);
+    ctx.fill();
+
+    // Calf diamond shape when big
+    if(legs > 0.8) {
+      ctx.fillStyle = legDark;
+      const calfPump = Math.min(1, (legs-0.5)*1.5);
+      ctx.beginPath();
+      ctx.ellipse(lx-side*legW*0.05, r*0.6+legH*0.65, legW*0.3*calfPump, legH*0.15*calfPump, 0, 0, Math.PI*2);
+      ctx.fill();
+      // Gastrocnemius split line
+      if(legs > 1.2) {
+        ctx.strokeStyle='rgba(0,0,0,0.1)'; ctx.lineWidth=0.6;
+        ctx.beginPath();
+        ctx.moveTo(lx, r*0.6+legH*0.55);
+        ctx.lineTo(lx, r*0.6+legH*0.78);
+        ctx.stroke();
+      }
+    }
+
+    // Hamstring line (back of leg)
+    if(legs > 1.0) {
+      ctx.strokeStyle='rgba(0,0,0,0.07)'; ctx.lineWidth=0.8;
+      ctx.beginPath();
+      ctx.moveTo(lx+side*legW*0.2, r*0.6+legH*0.15);
+      ctx.quadraticCurveTo(lx+side*legW*0.35, r*0.6+legH*0.35, lx+side*legW*0.15, r*0.6+legH*0.55);
+      ctx.stroke();
+    }
+
+    // Veins on quads when huge
+    if(legs > 1.5) {
+      ctx.strokeStyle='rgba(60,100,180,0.2)'; ctx.lineWidth=0.7;
+      ctx.beginPath();
+      ctx.moveTo(lx-side*legW*0.1, r*0.6+legH*0.1);
+      ctx.quadraticCurveTo(lx-side*legW*0.25, r*0.6+legH*0.3, lx-side*legW*0.08, r*0.6+legH*0.5);
+      ctx.stroke();
+    }
+
+    // Knee cap
+    ctx.fillStyle = skinDark;
+    ctx.beginPath();
+    ctx.ellipse(lx, r*0.6+legH*0.52, legW*0.2, legH*0.06, 0, 0, Math.PI*2);
+    ctx.fill();
+
+    // Feet
+    ctx.fillStyle='#333';
+    ctx.fillRect(lx-legW*0.35, r*0.6+legH-2, legW*0.7, 4);
+  }
+
+  // === TORSO === (wider with chest + back, taller with abs)
+  const torsoW = r * (0.4 + chest*0.6 + back*0.4);
+  const torsoH = r * (0.7 + abs*0.5 + chest*0.2);
+  ctx.fillStyle = isPlayer ? '#2ecc71' : '#e67e22';
+  ctx.beginPath();
+  ctx.ellipse(0, 0, torsoW, torsoH, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.strokeStyle='rgba(0,0,0,0.2)'; ctx.lineWidth=1.5; ctx.stroke();
+
+  // --- CHEST detail ---
+  if(chest > 0.4) {
+    const pecDepth = Math.min(1, (chest-0.3)*1.8);
+    // Pec mass (upper chest fullness)
+    ctx.fillStyle = isPlayer ? 'rgba(39,174,96,0.3)' : 'rgba(211,84,0,0.3)';
+    for(let s=-1;s<=1;s+=2) {
+      ctx.beginPath();
+      ctx.ellipse(s*torsoW*0.35, -torsoH*0.25, torsoW*0.35*pecDepth, torsoH*0.25*pecDepth, 0, 0, Math.PI*2);
+      ctx.fill();
+    }
+    // Pec separation line (center)
+    ctx.strokeStyle='rgba(0,0,0,0.12)'; ctx.lineWidth=1;
+    ctx.beginPath();
+    ctx.moveTo(0, -torsoH*0.55);
+    ctx.lineTo(0, -torsoH*0.05);
+    ctx.stroke();
+    // Lower pec line (underboob crease)
+    ctx.strokeStyle=`rgba(0,0,0,${0.06+pecDepth*0.08})`; ctx.lineWidth=1;
+    for(let s=-1;s<=1;s+=2) {
+      ctx.beginPath();
+      ctx.moveTo(s*torsoW*0.05, -torsoH*0.05);
+      ctx.quadraticCurveTo(s*torsoW*0.5*pecDepth, -torsoH*0.15*pecDepth, s*torsoW*0.65, -torsoH*0.35);
+      ctx.stroke();
+    }
+    // Upper pec fibers when big
+    if(chest > 1.0) {
+      ctx.strokeStyle='rgba(0,0,0,0.06)'; ctx.lineWidth=0.5;
+      for(let s=-1;s<=1;s+=2) {
+        for(let i=0;i<3;i++) {
+          ctx.beginPath();
+          ctx.moveTo(s*torsoW*0.1, -torsoH*0.45+i*4);
+          ctx.lineTo(s*torsoW*0.55, -torsoH*0.3+i*3);
+          ctx.stroke();
+        }
+      }
+    }
+    // Chest veins when huge
+    if(chest > 1.5) {
+      ctx.strokeStyle='rgba(60,120,60,0.18)'; ctx.lineWidth=0.7;
+      ctx.beginPath();
+      ctx.moveTo(-torsoW*0.15, -torsoH*0.5);
+      ctx.quadraticCurveTo(-torsoW*0.4, -torsoH*0.3, -torsoW*0.2, -torsoH*0.1);
+      ctx.stroke();
+    }
+  }
+
+  // --- ABS detail ---
+  if(abs > 0.4) {
+    const absDef = Math.min(1, (abs-0.3)*1.5);
+    // Abs blocks (up to 8-pack)
+    const absCount = Math.min(4, Math.floor((abs-0.3)*4)+1); // pairs of abs
+    ctx.strokeStyle=`rgba(0,0,0,${0.06+absDef*0.1})`; ctx.lineWidth=0.8+absDef*0.5;
+
+    // Center line (linea alba)
+    ctx.beginPath();
+    ctx.moveTo(0, -torsoH*0.05);
+    ctx.lineTo(0, torsoH*0.45);
+    ctx.stroke();
+
+    // Horizontal separations
+    for(let i=0;i<absCount;i++) {
+      const ay = torsoH*0.0 + i*(torsoH*0.42/absCount);
+      ctx.beginPath();
+      ctx.moveTo(-torsoW*0.22, ay);
+      ctx.lineTo(torsoW*0.22, ay);
+      ctx.stroke();
+    }
+
+    // Individual ab bumps when more defined
+    if(abs > 0.7) {
+      ctx.fillStyle = isPlayer ? 'rgba(39,174,96,0.15)' : 'rgba(211,84,0,0.15)';
+      for(let i=0;i<absCount;i++) {
+        const ay = torsoH*0.02 + i*(torsoH*0.42/absCount);
+        for(let s=-1;s<=1;s+=2) {
+          ctx.beginPath();
+          ctx.ellipse(s*torsoW*0.11, ay+torsoH*0.05, torsoW*0.1, torsoH*0.04, 0, 0, Math.PI*2);
+          ctx.fill();
+        }
+      }
+    }
+
+    // Oblique lines (sides)
+    if(abs > 0.8) {
+      ctx.strokeStyle=`rgba(0,0,0,${0.04+absDef*0.06})`; ctx.lineWidth=0.7;
+      for(let s=-1;s<=1;s+=2) {
+        ctx.beginPath();
+        ctx.moveTo(s*torsoW*0.3, -torsoH*0.05);
+        ctx.quadraticCurveTo(s*torsoW*0.35, torsoH*0.15, s*torsoW*0.25, torsoH*0.4);
+        ctx.stroke();
+      }
+    }
+
+    // Serratus (side ribs) when shredded
+    if(abs > 1.2) {
+      ctx.strokeStyle='rgba(0,0,0,0.06)'; ctx.lineWidth=0.6;
+      for(let s=-1;s<=1;s+=2) {
+        for(let i=0;i<3;i++) {
+          ctx.beginPath();
+          ctx.moveTo(s*torsoW*0.5, -torsoH*0.25+i*6);
+          ctx.lineTo(s*torsoW*0.3, -torsoH*0.2+i*6);
+          ctx.stroke();
+        }
+      }
+    }
+  }
+
+  // --- BACK detail (V-taper, lats, traps visible from front) ---
+  if(back > 0.5) {
+    const backDef = Math.min(1, (back-0.3)*1.5);
+    // Lat flare (widens the torso sides)
+    ctx.fillStyle = isPlayer ? 'rgba(39,174,96,0.2)' : 'rgba(211,84,0,0.2)';
+    for(let s=-1;s<=1;s+=2) {
+      ctx.beginPath();
+      ctx.ellipse(s*torsoW*0.85, -torsoH*0.1, torsoW*0.15*backDef, torsoH*0.4*backDef, 0, 0, Math.PI*2);
+      ctx.fill();
+    }
+    // V-taper lines
+    if(back > 0.8) {
+      ctx.strokeStyle='rgba(0,0,0,0.07)'; ctx.lineWidth=1;
+      for(let s=-1;s<=1;s+=2) {
+        ctx.beginPath();
+        ctx.moveTo(s*torsoW*0.8, -torsoH*0.6);
+        ctx.lineTo(s*torsoW*0.35, torsoH*0.3);
+        ctx.stroke();
+      }
+    }
+    // Trap bumps visible from front (rise up behind shoulders)
+    if(back > 1.0) {
+      ctx.fillStyle = isPlayer ? 'rgba(39,174,96,0.25)' : 'rgba(211,84,0,0.25)';
+      for(let s=-1;s<=1;s+=2) {
+        ctx.beginPath();
+        ctx.ellipse(s*torsoW*0.3, -torsoH*0.65, torsoW*0.2, torsoH*0.1, 0, 0, Math.PI*2);
+        ctx.fill();
+      }
+    }
+    // Rhomboid definition when huge
+    if(back > 1.5) {
+      ctx.strokeStyle='rgba(0,0,0,0.06)'; ctx.lineWidth=0.6;
+      ctx.beginPath();
+      ctx.moveTo(-torsoW*0.1, -torsoH*0.5);
+      ctx.lineTo(-torsoW*0.25, -torsoH*0.2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(torsoW*0.1, -torsoH*0.5);
+      ctx.lineTo(torsoW*0.25, -torsoH*0.2);
+      ctx.stroke();
+    }
+  }
+
+  // === SHOULDERS ===
+  const shoulderR = 3 + shoulders*8;
+  const shColor = isPlayer ? '#27ae60' : '#d35400';
+  const shDark = isPlayer ? '#1e8449' : '#a04000';
+
+  for(let s=-1;s<=1;s+=2) {
+    const shX = s*(torsoW+shoulderR*0.2);
+    const shY = -torsoH*0.5;
+
+    // Main deltoid
+    ctx.fillStyle = shColor;
+    ctx.beginPath(); ctx.arc(shX, shY, shoulderR, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle='rgba(0,0,0,0.12)'; ctx.lineWidth=1; ctx.stroke();
+
+    // Front/side/rear delt separation
+    if(shoulders > 0.6) {
+      const delDef = Math.min(1, (shoulders-0.3)*1.5);
+      // Front delt cap
+      ctx.fillStyle = shDark;
+      ctx.beginPath();
+      ctx.arc(shX+s*shoulderR*0.15, shY-shoulderR*0.1, shoulderR*0.5*delDef, 0, Math.PI*2);
+      ctx.fill();
+      // Side delt line
+      ctx.strokeStyle='rgba(0,0,0,0.1)'; ctx.lineWidth=0.8;
+      ctx.beginPath();
+      ctx.moveTo(shX, shY-shoulderR*0.8);
+      ctx.quadraticCurveTo(shX+s*shoulderR*0.8, shY, shX, shY+shoulderR*0.8);
+      ctx.stroke();
+    }
+
+    // Striations when big
+    if(shoulders > 1.0) {
+      ctx.strokeStyle='rgba(0,0,0,0.08)'; ctx.lineWidth=0.5;
+      for(let i=0;i<4;i++) {
+        const a = -Math.PI*0.3 + i*0.25;
+        ctx.beginPath();
+        ctx.moveTo(shX+Math.cos(a)*shoulderR*0.3, shY+Math.sin(a)*shoulderR*0.3);
+        ctx.lineTo(shX+Math.cos(a)*shoulderR*0.9, shY+Math.sin(a)*shoulderR*0.9);
+        ctx.stroke();
+      }
+    }
+
+    // Delt veins when huge
+    if(shoulders > 1.5) {
+      ctx.strokeStyle='rgba(60,120,60,0.2)'; ctx.lineWidth=0.7;
+      ctx.beginPath();
+      ctx.moveTo(shX, shY-shoulderR*0.5);
+      ctx.quadraticCurveTo(shX+s*shoulderR*0.6, shY-shoulderR*0.1, shX+s*shoulderR*0.2, shY+shoulderR*0.4);
+      ctx.stroke();
+    }
+  }
+
+  // === ARMS (upper arm + forearm + hand) ===
+  const armW = 2 + arms*8;
+  const armH = 6 + arms*12;
+  const faW = 1.5 + arms*3.5; // forearm scales with arms
+  const faH = 5 + arms*6;
+
+  for(let s=-1;s<=1;s+=2) {
+    ctx.save();
+    ctx.translate(s*(torsoW+shoulderR*0.2), -torsoH*0.3);
+    if(workingOut) ctx.rotate(Math.sin(performance.now()/150 + (s>0?1:0))*0.4);
+
+    // --- Upper arm ---
+    ctx.fillStyle = skinColor;
+    ctx.beginPath();
+    ctx.ellipse(0, armH*0.4, armW/2, armH/2, 0, 0, Math.PI*2);
+    ctx.fill();
+
+    // Bicep peak (front of arm)
+    if(arms > 0.5) {
+      const peakH = Math.min(0.6, (arms-0.3)*0.5);
+      ctx.fillStyle = skinDark;
+      ctx.beginPath();
+      ctx.ellipse(-s*armW*0.1, armH*0.3, armW*0.5, armH*peakH, 0, Math.PI, Math.PI*2);
+      ctx.fill();
+
+      // Bicep peak split (long head / short head)
+      if(arms > 1.0) {
+        ctx.strokeStyle='rgba(0,0,0,0.08)'; ctx.lineWidth=0.6;
+        ctx.beginPath();
+        ctx.moveTo(-s*armW*0.1, armH*0.1);
+        ctx.lineTo(-s*armW*0.1, armH*0.35);
+        ctx.stroke();
+      }
+    }
+
+    // Tricep horseshoe (back of arm)
+    if(arms > 0.6) {
+      const triDef = Math.min(1, (arms-0.4)*2);
+      ctx.fillStyle = skinLight;
+      ctx.beginPath();
+      ctx.ellipse(s*armW*0.15, armH*0.35, armW*0.35*triDef, armH*0.3*triDef, 0, 0, Math.PI*2);
+      ctx.fill();
+      // Tricep lateral head line
+      ctx.strokeStyle='rgba(0,0,0,0.08)'; ctx.lineWidth=0.7;
+      ctx.beginPath();
+      ctx.moveTo(s*armW*0.25, armH*0.1);
+      ctx.quadraticCurveTo(s*armW*0.4, armH*0.35, s*armW*0.2, armH*0.6);
+      ctx.stroke();
+    }
+
+    // Brachialis (between bicep and tricep)
+    if(arms > 1.0) {
+      ctx.fillStyle = skinDark;
+      ctx.beginPath();
+      ctx.ellipse(0, armH*0.5, armW*0.25, armH*0.12, 0, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    // Arm veins
+    if(arms > 1.2) {
+      ctx.strokeStyle='rgba(60,120,60,0.2)'; ctx.lineWidth=0.7;
+      // Cephalic vein (outer)
+      ctx.beginPath();
+      ctx.moveTo(-s*armW*0.2, armH*0.05);
+      ctx.quadraticCurveTo(-s*armW*0.35, armH*0.3, -s*armW*0.15, armH*0.6);
+      ctx.stroke();
+      // Basilic vein (inner)
+      if(arms > 1.5) {
+        ctx.beginPath();
+        ctx.moveTo(s*armW*0.1, armH*0.1);
+        ctx.quadraticCurveTo(s*armW*0.2, armH*0.4, s*armW*0.05, armH*0.65);
+        ctx.stroke();
+      }
+    }
+
+    // --- Forearm ---
+    ctx.fillStyle = skinColor;
+    ctx.beginPath();
+    ctx.ellipse(0, armH+faH*0.3, faW/2, faH/2, 0, 0, Math.PI*2);
+    ctx.fill();
+
+    // Brachioradialis bump
+    if(arms > 0.6) {
+      ctx.fillStyle = skinDark;
+      ctx.beginPath();
+      ctx.ellipse(-s*faW*0.15, armH+faH*0.15, faW*0.3, faH*0.2, 0, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    // Forearm veins
+    if(arms > 1.0) {
+      ctx.strokeStyle='rgba(60,120,60,0.18)'; ctx.lineWidth=0.6;
+      ctx.beginPath();
+      ctx.moveTo(0, armH+faH*0.05);
+      ctx.quadraticCurveTo(-s*faW*0.2, armH+faH*0.3, 0, armH+faH*0.55);
+      ctx.stroke();
+    }
+
+    // Forearm muscle lines
+    if(arms > 0.8) {
+      ctx.strokeStyle='rgba(0,0,0,0.06)'; ctx.lineWidth=0.5;
+      ctx.beginPath();
+      ctx.moveTo(s*faW*0.1, armH+faH*0.05);
+      ctx.lineTo(s*faW*0.05, armH+faH*0.5);
+      ctx.stroke();
+    }
+
+    // Wrist taper
+    ctx.fillStyle = skinColor;
+    ctx.beginPath();
+    ctx.ellipse(0, armH+faH*0.6, faW*0.3, faH*0.08, 0, 0, Math.PI*2);
+    ctx.fill();
+
+    // Hand
+    ctx.fillStyle = skinDark;
+    ctx.beginPath(); ctx.arc(0, armH+faH*0.7, faW*0.4, 0, Math.PI*2); ctx.fill();
+
+    ctx.restore();
+  }
+
+  // === NECK (simple, scales with overall size) ===
+  const neckW = 2 + avgMuscle*4;
+  const neckH = 4;
+  ctx.fillStyle = skinColor;
+  ctx.fillRect(-neckW/2, -torsoH-neckH+1, neckW, neckH);
+
+  // Trap rise visible from front
+  if(back > 0.7 || shoulders > 0.7) {
+    ctx.fillStyle = skinDark;
+    for(let s=-1;s<=1;s+=2) {
+      ctx.beginPath();
+      ctx.moveTo(s*neckW/2, -torsoH+1);
+      ctx.quadraticCurveTo(s*torsoW*0.4, -torsoH*0.75, s*torsoW*0.6, -torsoH*0.55);
+      ctx.lineTo(s*neckW/2, -torsoH*0.7);
+      ctx.fill();
+    }
+  }
+
+  // === HEAD ===
+  const headR = 7 + Math.max(0, chest-0.5)*1.5;
+  ctx.fillStyle = skinColor;
+  ctx.beginPath(); ctx.arc(0, -torsoH-neckH-headR+3, headR, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle='rgba(0,0,0,0.15)'; ctx.lineWidth=1; ctx.stroke();
+
+  // Hair
+  ctx.fillStyle = isPlayer ? '#8B4513' : `hsl(${(x*7+y*3)%360},30%,30%)`;
+  ctx.beginPath();
+  ctx.arc(0, -torsoH-neckH-headR+1, headR*0.95, Math.PI, Math.PI*2);
+  ctx.fill();
+
+  // Eyes
+  ctx.fillStyle='#fff';
+  ctx.beginPath(); ctx.arc(-3, -torsoH-neckH-headR+3, 2.5, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(3, -torsoH-neckH-headR+3, 2.5, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle='#333';
+  ctx.beginPath(); ctx.arc(-2.5, -torsoH-neckH-headR+3, 1.2, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(3.5, -torsoH-neckH-headR+3, 1.2, 0, Math.PI*2); ctx.fill();
+
+  // Mouth
+  ctx.strokeStyle='rgba(0,0,0,0.3)'; ctx.lineWidth=1;
+  ctx.beginPath();
+  ctx.arc(0, -torsoH-neckH-headR+6, 2.5, 0.1, Math.PI-0.1);
+  ctx.stroke();
+
+  // Workout sweat drops
+  if(workingOut) {
+    ctx.fillStyle='rgba(100,180,255,0.6)';
+    ctx.beginPath(); ctx.arc(headR+2, -torsoH-neckH-headR, 2, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(-headR-1, -torsoH-neckH-headR+5, 1.5, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(headR-1, -torsoH-neckH-headR+8, 1, 0, Math.PI*2); ctx.fill();
+    // Extra sweat for big guys
+    if(avgMuscle > 1.0) {
+      ctx.beginPath(); ctx.arc(-headR+2, -torsoH-neckH-headR+10, 1, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(headR+1, -torsoH-neckH-headR+7, 1.2, 0, Math.PI*2); ctx.fill();
+    }
+  }
+
+  // Overall vascularity shimmer when very muscular
+  if(avgMuscle > 1.3) {
+    const veinAlpha = Math.min(0.15, (avgMuscle-1.3)*0.2);
+    ctx.strokeStyle=`rgba(80,140,80,${veinAlpha})`; ctx.lineWidth=0.5;
+    // Random-looking but deterministic veins on torso
+    ctx.beginPath();
+    ctx.moveTo(-torsoW*0.3, -torsoH*0.6);
+    ctx.quadraticCurveTo(-torsoW*0.5, -torsoH*0.3, -torsoW*0.2, torsoH*0.1);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(torsoW*0.4, -torsoH*0.5);
+    ctx.quadraticCurveTo(torsoW*0.6, -torsoH*0.2, torsoW*0.3, torsoH*0.2);
+    ctx.stroke();
+  }
+
+  // Medicine glow effect
+  if(isPlayer && game.medicineTimer > 0) {
+    ctx.strokeStyle='rgba(0,255,150,0.3)'; ctx.lineWidth=2;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, torsoW+6, torsoH+6, 0, 0, Math.PI*2);
+    ctx.stroke();
+    const t = performance.now()/500;
+    for(let i=0;i<4;i++) {
+      const sa = t + i*Math.PI/2;
+      const sx = Math.cos(sa)*(torsoW+10);
+      const sy = Math.sin(sa)*(torsoH+10);
+      ctx.fillStyle='rgba(0,255,150,0.5)';
+      ctx.beginPath(); ctx.arc(sx, sy, 2, 0, Math.PI*2); ctx.fill();
+    }
+  }
+
+  ctx.restore();
+}
+
+// ─── Game Loop ───
+let lastTime = 0;
+function gameLoop(time) {
+  if(!game.running) return;
+  const dt = Math.min(time-lastTime, 50);
+  lastTime = time;
+
+  // ─ Sleep logic
+  if(game.sleeping) {
+    game.sleepTimer += dt;
+    const msgs = ['Zzz...','Building muscle...','Protein synthesis...','Recovery mode...'];
+    document.getElementById('sleep-text').textContent = msgs[Math.floor(game.sleepTimer/800)%msgs.length];
+    if(game.sleepTimer > 3000) wakeUp();
+    requestAnimationFrame(gameLoop);
+    return;
+  }
+
+  // ─ Player movement
+  let dx=0, dy=0;
+  if(keys['w']||keys['arrowup']) dy=-1;
+  if(keys['s']||keys['arrowdown']) dy=1;
+  if(keys['a']||keys['arrowleft']) dx=-1;
+  if(keys['d']||keys['arrowright']) dx=1;
+  if(dx||dy){
+    const len=Math.sqrt(dx*dx+dy*dy);
+    player.x += (dx/len)*player.speed;
+    player.y += (dy/len)*player.speed;
+    player.angle = Math.atan2(dy, dx);
+  }
+  // Keep in gym
+  player.x = Math.max(50+player.r, Math.min(GYM_W+50-player.r, player.x));
+  player.y = Math.max(50+player.r, Math.min(GYM_H+50-player.r, player.y));
+
+  // Collide with equipment
+  for(const eq of EQUIPMENT) {
+    const cx=eq.x+eq.w/2, cy=eq.y+eq.h/2;
+    const hw=eq.w/2+player.r, hh=eq.h/2+player.r;
+    if(Math.abs(player.x-cx)<hw && Math.abs(player.y-cy)<hh) {
+      // Push out
+      const ox=hw-Math.abs(player.x-cx), oy=hh-Math.abs(player.y-cy);
+      if(ox<oy) player.x += player.x<cx?-ox:ox;
+      else player.y += player.y<cy?-oy:oy;
+    }
+  }
+
+  // NPC updates
+  for(const npc of npcs) updateNPC(npc, dt);
+
+  // Medicine timers
+  if(game.medicineTimer > 0) game.medicineTimer = Math.max(0, game.medicineTimer - dt);
+  if(game.medicineCooldown > 0) game.medicineCooldown = Math.max(0, game.medicineCooldown - dt);
+
+  // Stamina regen (faster with medicine active)
+  const staminaRegen = game.medicineTimer > 0 ? 0.008 : 0.002;
+  if(game.stamina < game.maxStamina && !game.workout) {
+    game.stamina = Math.min(game.maxStamina, game.stamina + dt*staminaRegen);
+  }
+
+  render();
+  requestAnimationFrame(gameLoop);
+}
+
+// ─── Render ───
+function render() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  // Camera
+  const camX = player.x - canvas.width/2;
+  const camY = player.y - canvas.height/2;
+
+  ctx.save();
+  ctx.translate(-camX, -camY);
+
+  // Gym floor
+  ctx.fillStyle='#2c3e50';
+  ctx.fillRect(40,40,GYM_W+20,GYM_H+20);
+  ctx.fillStyle='#34495e';
+  ctx.fillRect(50,50,GYM_W,GYM_H);
+
+  // Floor tiles
+  ctx.strokeStyle='rgba(255,255,255,0.04)';
+  ctx.lineWidth=1;
+  for(let x=50;x<GYM_W+50;x+=TILE) for(let y=50;y<GYM_H+50;y+=TILE) ctx.strokeRect(x,y,TILE,TILE);
+
+  // Rubber mat areas
+  ctx.fillStyle='rgba(44,62,80,0.5)';
+  ctx.fillRect(120,150,120,100); // bench area
+  ctx.fillRect(420,150,120,100); // dumbbell area
+  ctx.fillRect(120,350,120,120); // squat area
+  ctx.fillRect(420,370,120,80);  // abs area
+
+  // Mirrors on top wall
+  ctx.fillStyle='rgba(100,150,200,0.15)';
+  ctx.fillRect(60,55,GYM_W-20,8);
+  ctx.strokeStyle='rgba(150,200,255,0.3)'; ctx.lineWidth=1;
+  ctx.strokeRect(60,55,GYM_W-20,8);
+
+  // Gym walls
+  ctx.strokeStyle='#7f8c8d'; ctx.lineWidth=4;
+  ctx.strokeRect(50,50,GYM_W,GYM_H);
+
+  // Wall labels
+  ctx.fillStyle='rgba(255,255,255,0.1)'; ctx.font='bold 20px Arial'; ctx.textAlign='center';
+  ctx.fillText('GYM', GYM_W/2+50, 45);
+
+  // Equipment
+  for(const eq of EQUIPMENT) {
+    ctx.save();
+    ctx.translate(eq.x+eq.w/2, eq.y+eq.h/2);
+
+    // Equipment shadow
+    ctx.fillStyle='rgba(0,0,0,0.3)';
+    ctx.fillRect(-eq.w/2+3, -eq.h/2+3, eq.w, eq.h);
+
+    // Equipment body
+    ctx.fillStyle=eq.color;
+    ctx.fillRect(-eq.w/2, -eq.h/2, eq.w, eq.h);
+    ctx.strokeStyle='rgba(0,0,0,0.4)'; ctx.lineWidth=2;
+    ctx.strokeRect(-eq.w/2, -eq.h/2, eq.w, eq.h);
+
+    // Equipment detail based on type
+    ctx.fillStyle='rgba(255,255,255,0.1)';
+    ctx.fillRect(-eq.w/2+3, -eq.h/2+3, eq.w-6, 4);
+
+    // Metal parts
+    ctx.fillStyle='#999';
+    if(eq.muscle==='chest'||eq.muscle==='shoulders') {
+      ctx.fillRect(-eq.w/2-8, -2, 8, 4);
+      ctx.fillRect(eq.w/2, -2, 8, 4);
+      // Weight plates
+      ctx.fillStyle='#333';
+      ctx.fillRect(-eq.w/2-12, -5, 5, 10);
+      ctx.fillRect(eq.w/2+7, -5, 5, 10);
+    }
+    if(eq.muscle==='legs') {
+      ctx.fillRect(-3, -eq.h/2-5, 6, 5);
+      ctx.fillStyle='#333';
+      ctx.fillRect(-6, -eq.h/2-8, 12, 4);
+    }
+    if(eq.name==='Treadmill') {
+      ctx.fillStyle='#333';
+      ctx.fillRect(-eq.w/2+5, eq.h/2-8, eq.w-10, 5);
+      // Belt lines
+      ctx.strokeStyle='rgba(255,255,255,0.1)'; ctx.lineWidth=1;
+      for(let i=0;i<3;i++) {
+        ctx.beginPath();
+        ctx.moveTo(-eq.w/2+8+i*15, -eq.h/2+10);
+        ctx.lineTo(-eq.w/2+8+i*15, eq.h/2-10);
+        ctx.stroke();
+      }
+    }
+    if(eq.name==='Dumbbell Rack') {
+      ctx.fillStyle='#888';
+      for(let i=0;i<3;i++) {
+        ctx.fillRect(-20+i*15, -8, 12, 4);
+        ctx.fillStyle='#444';
+        ctx.fillRect(-22+i*15, -7, 3, 2);
+        ctx.fillRect(-8+i*15, -7, 3, 2);
+        ctx.fillStyle='#888';
+      }
+    }
+
+    // Label
+    ctx.fillStyle='rgba(255,255,255,0.7)'; ctx.font='8px Arial'; ctx.textAlign='center';
+    ctx.fillText(eq.name, 0, eq.h/2+12);
+
+    // Muscle group indicator
+    ctx.fillStyle=MUSCLE_GROUPS[eq.muscle].color;
+    ctx.beginPath(); ctx.arc(eq.w/2-4, -eq.h/2+4, 4, 0, Math.PI*2); ctx.fill();
+
+    ctx.restore();
+  }
+
+  // Bed
+  ctx.save();
+  ctx.translate(BED.x+BED.w/2, BED.y+BED.h/2);
+  // Bed frame
+  ctx.fillStyle='#5D4037';
+  ctx.fillRect(-BED.w/2-3, -BED.h/2-3, BED.w+6, BED.h+6);
+  // Mattress
+  ctx.fillStyle='#7986CB';
+  ctx.fillRect(-BED.w/2, -BED.h/2, BED.w, BED.h);
+  // Pillow
+  ctx.fillStyle='#C5CAE9';
+  ctx.fillRect(-BED.w/2+5, -BED.h/2+5, 25, BED.h-10);
+  // Blanket fold
+  ctx.fillStyle='#5C6BC0';
+  ctx.fillRect(5, -BED.h/2+3, BED.w/2-8, BED.h-6);
+  // Label
+  ctx.fillStyle='rgba(255,255,255,0.6)'; ctx.font='9px Arial'; ctx.textAlign='center';
+  ctx.fillText('Bed (Sleep)', 0, BED.h/2+14);
+  ctx.fillText('Zzz', -BED.w/2+12, -BED.h/2-4);
+  ctx.restore();
+
+  // Medicine Cabinet
+  ctx.save();
+  ctx.translate(MEDICINE_CABINET.x+MEDICINE_CABINET.w/2, MEDICINE_CABINET.y+MEDICINE_CABINET.h/2);
+  // Cabinet body
+  ctx.fillStyle='#2C3E50';
+  ctx.fillRect(-MEDICINE_CABINET.w/2, -MEDICINE_CABINET.h/2, MEDICINE_CABINET.w, MEDICINE_CABINET.h);
+  ctx.strokeStyle='#1ABC9C'; ctx.lineWidth=2;
+  ctx.strokeRect(-MEDICINE_CABINET.w/2, -MEDICINE_CABINET.h/2, MEDICINE_CABINET.w, MEDICINE_CABINET.h);
+  // Cross symbol
+  ctx.fillStyle='#1ABC9C';
+  ctx.fillRect(-3, -MEDICINE_CABINET.h/4, 6, MEDICINE_CABINET.h/2);
+  ctx.fillRect(-MEDICINE_CABINET.w/4, -3, MEDICINE_CABINET.w/2, 6);
+  // Glow pulse
+  const glowAlpha = 0.15 + Math.sin(performance.now()/600)*0.1;
+  ctx.strokeStyle=`rgba(26,188,156,${glowAlpha})`; ctx.lineWidth=4;
+  ctx.strokeRect(-MEDICINE_CABINET.w/2-4, -MEDICINE_CABINET.h/2-4, MEDICINE_CABINET.w+8, MEDICINE_CABINET.h+8);
+  // Label
+  ctx.fillStyle='rgba(255,255,255,0.7)'; ctx.font='8px Arial'; ctx.textAlign='center';
+  ctx.fillText('Medicine', 0, MEDICINE_CABINET.h/2+12);
+  if(game.medicineCooldown > 0) {
+    ctx.fillStyle='rgba(255,100,100,0.8)'; ctx.font='7px Arial';
+    ctx.fillText(Math.ceil(game.medicineCooldown/1000)+'s', 0, MEDICINE_CABINET.h/2+22);
+  }
+  ctx.restore();
+
+  // NPCs
+  for(const npc of npcs) {
+    drawCharacter(npc.x, npc.y, npc.angle, npc.r, npc.muscles, false, npc.workingOut);
+    // Name tag
+    const nHead = 7 + Math.max(0,(npc.muscles.chest||0.3)-0.5)*1.5;
+    const nTorso = npc.r * (0.7 + (npc.muscles.abs||0.3)*0.5 + (npc.muscles.chest||0.3)*0.2);
+    const nTagY = npc.y - nTorso - 4 - nHead*2 - 6;
+    ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.font='9px Arial'; ctx.textAlign='center';
+    ctx.fillText(npc.name, npc.x, nTagY);
+    ctx.fillStyle='#fff';
+    ctx.fillText(npc.name, npc.x-1, nTagY-1);
+    ctx.textAlign='left';
+  }
+
+  // Player
+  const playerMuscles = {};
+  for(const k in MUSCLE_GROUPS) playerMuscles[k] = MUSCLE_GROUPS[k].size;
+  const isWorkoutAnim = game.workoutAnim && (performance.now() - game.workoutAnim < 600);
+  drawCharacter(player.x, player.y, player.angle, player.r, playerMuscles, true, isWorkoutAnim);
+
+  // Player label
+  const headOff = 7 + Math.max(0,(playerMuscles.chest||0.3)-0.5)*1.5;
+  const torsoOff = player.r * (0.7 + (playerMuscles.abs||0.3)*0.5 + (playerMuscles.chest||0.3)*0.2);
+  ctx.fillStyle='#fff'; ctx.font='bold 10px Arial'; ctx.textAlign='center';
+  ctx.fillText('YOU', player.x, player.y - torsoOff - 4 - headOff*2 - 6);
+  ctx.textAlign='left';
+
+  ctx.restore();
+
+  // ─── HUD updates ───
+  document.getElementById('stamina-label').textContent=`Stamina: ${Math.ceil(game.stamina)}/${game.maxStamina}`;
+  document.getElementById('stamina-bar').style.width=`${(game.stamina/game.maxStamina)*100}%`;
+  document.getElementById('xp-label').textContent=`XP: ${Math.floor(game.xp)}/${game.xpToLevel}`;
+  document.getElementById('xp-bar').style.width=`${(game.xp/game.xpToLevel)*100}%`;
+  document.getElementById('day-count').textContent=`Day ${game.day}`;
+  const lvlName = LEVEL_NAMES[Math.min(game.level-1, LEVEL_NAMES.length-1)];
+  document.getElementById('level-info').textContent=`Level ${game.level} - ${lvlName}`;
+
+  // Stats panel
+  let statsHTML='';
+  for(const k in MUSCLE_GROUPS) {
+    const m = MUSCLE_GROUPS[k];
+    const pct = ((m.size-0.3)*100).toFixed(0);
+    const barW = Math.min(100, (m.size-0.3)*30);
+    statsHTML+=`<div class="stat-row"><span style="color:${m.color}">${m.name}</span><span class="val">+${pct}%</span></div>`;
+    statsHTML+=`<div style="width:100%;height:4px;background:#333;border-radius:2px;margin-bottom:6px"><div style="width:${barW}%;height:100%;background:${m.color};border-radius:2px"></div></div>`;
+  }
+  // Total muscle mass
+  let totalMass = 0;
+  for(const k in MUSCLE_GROUPS) totalMass += (MUSCLE_GROUPS[k].size-0.3)*100;
+  statsHTML+=`<div class="stat-row" style="margin-top:5px;border-top:1px solid #333;padding-top:5px"><span style="color:#f1c40f">Total Gains</span><span class="val">+${totalMass.toFixed(0)}%</span></div>`;
+  statsHTML+=`<div class="stat-row"><span>Workouts</span><span class="val">${game.totalWorkouts}</span></div>`;
+  statsHTML+=`<div class="stat-row"><span>Doses</span><span class="val">${game.medicineDoses} (+${game.medicineDoses*5}%)</span></div>`;
+  if(game.medicineTimer > 0) {
+    statsHTML+=`<div style="margin-top:6px;padding:4px;background:rgba(26,188,156,0.2);border:1px solid #1abc9c;border-radius:4px;text-align:center"><span style="color:#1abc9c;font-size:11px;font-weight:bold">MEDICINE ACTIVE ${Math.ceil(game.medicineTimer/1000)}s</span></div>`;
+  }
+  document.getElementById('stats-content').innerHTML = statsHTML;
+
+  // Interaction prompt
+  let promptText = '';
+  // Medicine cabinet
+  const medD = Math.sqrt((player.x-(MEDICINE_CABINET.x+MEDICINE_CABINET.w/2))**2 + (player.y-(MEDICINE_CABINET.y+MEDICINE_CABINET.h/2))**2);
+  if(medD < 60) {
+    if(game.medicineCooldown > 0) {
+      promptText = `Medicine - Cooldown ${Math.ceil(game.medicineCooldown/1000)}s`;
+    } else {
+      promptText = '[E] Take Medicine - 2x Growth, +50 Stamina, Faster Regen for 30s';
+    }
+  }
+  const bedD = Math.sqrt((player.x-(BED.x+BED.w/2))**2 + (player.y-(BED.y+BED.h/2))**2);
+  if(bedD < 60 && !game.workout) {
+    promptText = '[E] Sleep - Recover Stamina';
+  }
+  for(const eq of EQUIPMENT) {
+    const d = Math.sqrt((player.x-(eq.x+eq.w/2))**2 + (player.y-(eq.y+eq.h/2))**2);
+    if(d < 55 && !game.workout) {
+      const canDo = game.stamina >= eq.staminaCost;
+      promptText = canDo
+        ? `[E] ${eq.name} - ${eq.muscle.toUpperCase()} (${eq.staminaCost} stamina, ${eq.repsNeeded} reps)`
+        : `${eq.name} - Need ${eq.staminaCost} stamina!`;
+      break;
+    }
+  }
+  const promptEl = document.getElementById('prompt');
+  promptEl.innerHTML = promptText;
+  promptEl.style.opacity = promptText ? '1' : '0';
+}
+
+</script>
+</body>
+</html>

@@ -1,0 +1,1058 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Infinite Line of Sight Maze</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            font-family: 'Courier New', monospace;
+        }
+
+        .game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #ffcc00;
+            font-size: 14px;
+            text-shadow: 0 0 10px #000;
+            z-index: 10;
+        }
+
+        .title {
+            color: #ffdd00;
+            font-size: 20px;
+            text-shadow: 0 0 10px #ffaa00;
+            margin-bottom: 5px;
+        }
+
+        .stats {
+            color: #aa8800;
+            font-size: 12px;
+        }
+
+        .bars-container {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 220px;
+            z-index: 10;
+        }
+
+        .bar-wrapper {
+            margin-bottom: 8px;
+        }
+
+        .bar-label {
+            color: #ffcc00;
+            font-size: 11px;
+            text-align: center;
+            margin-bottom: 3px;
+            text-shadow: 0 0 5px #000;
+        }
+
+        .bar-outer {
+            width: 100%;
+            height: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 2px solid #aa8800;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        .bar-fill {
+            height: 100%;
+            transition: width 0.1s;
+            border-radius: 3px;
+        }
+
+        .stamina-fill {
+            background: linear-gradient(90deg, #00aa44, #00ff66);
+        }
+
+        .stamina-fill.low {
+            background: linear-gradient(90deg, #aa4400, #ff6600);
+        }
+
+        .stamina-fill.depleted {
+            background: linear-gradient(90deg, #aa0000, #ff0000);
+        }
+
+        .sanity-fill {
+            background: linear-gradient(90deg, #4444aa, #6666ff);
+        }
+
+        .sanity-fill.warning {
+            background: linear-gradient(90deg, #aa44aa, #ff66ff);
+        }
+
+        .sanity-fill.critical {
+            background: linear-gradient(90deg, #aa0044, #ff0066);
+            animation: sanityPulse 0.5s infinite;
+        }
+
+        @keyframes sanityPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        .escape-text {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 48px;
+            color: #00ff00;
+            text-shadow: 0 0 20px #00ff00, 0 0 40px #00ff00;
+            z-index: 100;
+            display: none;
+            animation: glitchText 0.1s infinite;
+        }
+
+        @keyframes glitchText {
+            0% { transform: translate(-50%, -50%) skew(0deg); }
+            25% { transform: translate(-48%, -52%) skew(2deg); }
+            50% { transform: translate(-52%, -48%) skew(-2deg); }
+            75% { transform: translate(-50%, -50%) skew(1deg); }
+            100% { transform: translate(-50%, -50%) skew(0deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <div class="info">
+            <div class="title">INFINITE MAZE</div>
+            <div class="stats">
+                Distance: <span id="distance">0</span>m |
+                Hold WASD to move | SHIFT to sprint
+            </div>
+        </div>
+        <div class="bars-container">
+            <div class="bar-wrapper">
+                <div class="bar-label">SANITY</div>
+                <div class="bar-outer" style="border-color: #6644aa;">
+                    <div class="bar-fill sanity-fill" id="sanity-fill"></div>
+                </div>
+            </div>
+            <div class="bar-wrapper">
+                <div class="bar-label">STAMINA</div>
+                <div class="bar-outer">
+                    <div class="bar-fill stamina-fill" id="stamina-fill"></div>
+                </div>
+            </div>
+        </div>
+        <div class="escape-text" id="escape-text">YOU ESCAPED</div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const TILE_SIZE = 40;
+        const VIEW_RANGE = 6;
+
+        // Colors
+        const WALL_COLOR = '#ddaa00';
+        const FLOOR_COLOR = '#ddaa00';
+        const DARK_COLOR = '#000000';
+        const PLAYER_COLOR = '#ff4444';
+        const GLITCH_COLOR = '#00ffaa';
+
+        // Camera
+        let camera = { x: 0, y: 0 };
+
+        // Generate random glitch zone position (30-80 tiles away from start)
+        function generateGlitchZone() {
+            const minDist = 30;
+            const maxDist = 80;
+            const angle = Math.random() * Math.PI * 2;
+            const dist = minDist + Math.random() * (maxDist - minDist);
+            return {
+                x: Math.floor(Math.cos(angle) * dist),
+                y: Math.floor(Math.sin(angle) * dist),
+                radius: 0.5 // Single tile
+            };
+        }
+
+        // Glitch zone - randomly generated
+        const GLITCH_ZONE = generateGlitchZone();
+
+        // Player
+        let player = {
+            x: 2,
+            y: 2,
+            targetX: 2,
+            targetY: 2,
+            walkSpeed: 0.10,
+            sprintSpeed: 0.20,
+            stamina: 100,
+            maxStamina: 100,
+            staminaDrain: 0.8,
+            staminaRegen: 0.3,
+            isSprinting: false,
+            canSprint: true,
+            sanity: 0,
+            maxSanity: 100,
+            sanityRate: 0.008
+        };
+        let startY = 2;
+
+        // Flicker
+        let lightsOn = true;
+        let lastFlicker = Date.now();
+        const FLICKER_INTERVAL = 15000;
+        const FLICKER_DURATION = 200;
+
+        let escaped = false;
+        let glitchIntensity = 0;
+
+        // Ground arrows - placed every 10 tiles
+        let groundArrows = new Map();
+        const ARROW_SPACING = 10;
+
+        // Hallucinations
+        let hallucinations = [];
+        let lastHallucinationSpawn = 0;
+
+        // Chunk-based infinite maze
+        const CHUNK_SIZE = 24;
+        const chunks = new Map();
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        function seededRandom(seed) {
+            const x = Math.sin(seed * 9999) * 10000;
+            return x - Math.floor(x);
+        }
+
+        function getChunkKey(cx, cy) {
+            return `${cx},${cy}`;
+        }
+
+        // Generate maze with 2-wide corridors
+        function generateChunk(chunkX, chunkY) {
+            const key = getChunkKey(chunkX, chunkY);
+            if (chunks.has(key)) return chunks.get(key);
+
+            const chunk = [];
+            const seed = chunkX * 10000 + chunkY;
+
+            for (let y = 0; y < CHUNK_SIZE; y++) {
+                chunk[y] = [];
+                for (let x = 0; x < CHUNK_SIZE; x++) {
+                    chunk[y][x] = 1;
+                }
+            }
+
+            function localRandom(x, y, iter) {
+                return seededRandom(seed + x * 100 + y * 10000 + iter * 1000000);
+            }
+
+            const CORRIDOR_WIDTH = 2;
+            const WALL_WIDTH = 1;
+            const CELL_SIZE = CORRIDOR_WIDTH + WALL_WIDTH;
+
+            const cellsX = Math.floor(CHUNK_SIZE / CELL_SIZE);
+            const cellsY = Math.floor(CHUNK_SIZE / CELL_SIZE);
+
+            for (let cy = 0; cy < cellsY; cy++) {
+                for (let cx = 0; cx < cellsX; cx++) {
+                    const baseX = cx * CELL_SIZE;
+                    const baseY = cy * CELL_SIZE;
+
+                    for (let dy = 0; dy < CORRIDOR_WIDTH; dy++) {
+                        for (let dx = 0; dx < CORRIDOR_WIDTH; dx++) {
+                            const px = baseX + dx;
+                            const py = baseY + dy;
+                            if (px < CHUNK_SIZE && py < CHUNK_SIZE) {
+                                chunk[py][px] = 0;
+                            }
+                        }
+                    }
+                }
+            }
+
+            for (let cy = 0; cy < cellsY; cy++) {
+                for (let cx = 0; cx < cellsX - 1; cx++) {
+                    const worldCX = chunkX * cellsX + cx;
+                    const worldCY = chunkY * cellsY + cy;
+
+                    if (localRandom(worldCX, worldCY, 0) > 0.2) {
+                        const baseX = cx * CELL_SIZE + CORRIDOR_WIDTH;
+                        const baseY = cy * CELL_SIZE;
+
+                        for (let dy = 0; dy < CORRIDOR_WIDTH; dy++) {
+                            for (let dx = 0; dx < WALL_WIDTH; dx++) {
+                                const px = baseX + dx;
+                                const py = baseY + dy;
+                                if (px < CHUNK_SIZE && py < CHUNK_SIZE) {
+                                    chunk[py][px] = 0;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            for (let cy = 0; cy < cellsY - 1; cy++) {
+                for (let cx = 0; cx < cellsX; cx++) {
+                    const worldCX = chunkX * cellsX + cx;
+                    const worldCY = chunkY * cellsY + cy;
+
+                    if (localRandom(worldCX, worldCY, 1) > 0.2) {
+                        const baseX = cx * CELL_SIZE;
+                        const baseY = cy * CELL_SIZE + CORRIDOR_WIDTH;
+
+                        for (let dy = 0; dy < WALL_WIDTH; dy++) {
+                            for (let dx = 0; dx < CORRIDOR_WIDTH; dx++) {
+                                const px = baseX + dx;
+                                const py = baseY + dy;
+                                if (px < CHUNK_SIZE && py < CHUNK_SIZE) {
+                                    chunk[py][px] = 0;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            for (let cx = 0; cx < cellsX; cx++) {
+                if (localRandom(chunkX * CHUNK_SIZE + cx, chunkY * CHUNK_SIZE, 10) > 0.3) {
+                    const baseX = cx * CELL_SIZE;
+                    chunk[0][baseX] = 0;
+                    chunk[0][baseX + 1] = 0;
+                }
+            }
+
+            for (let cx = 0; cx < cellsX; cx++) {
+                if (localRandom(chunkX * CHUNK_SIZE + cx, (chunkY + 1) * CHUNK_SIZE, 11) > 0.3) {
+                    const baseX = cx * CELL_SIZE;
+                    chunk[CHUNK_SIZE - 1][baseX] = 0;
+                    chunk[CHUNK_SIZE - 1][baseX + 1] = 0;
+                    chunk[CHUNK_SIZE - 2][baseX] = 0;
+                    chunk[CHUNK_SIZE - 2][baseX + 1] = 0;
+                }
+            }
+
+            for (let cy = 0; cy < cellsY; cy++) {
+                if (localRandom(chunkX * CHUNK_SIZE, chunkY * CHUNK_SIZE + cy, 12) > 0.3) {
+                    const baseY = cy * CELL_SIZE;
+                    chunk[baseY][0] = 0;
+                    chunk[baseY + 1][0] = 0;
+                }
+            }
+
+            for (let cy = 0; cy < cellsY; cy++) {
+                if (localRandom((chunkX + 1) * CHUNK_SIZE, chunkY * CHUNK_SIZE + cy, 13) > 0.3) {
+                    const baseY = cy * CELL_SIZE;
+                    chunk[baseY][CHUNK_SIZE - 1] = 0;
+                    chunk[baseY + 1][CHUNK_SIZE - 1] = 0;
+                    chunk[baseY][CHUNK_SIZE - 2] = 0;
+                    chunk[baseY + 1][CHUNK_SIZE - 2] = 0;
+                }
+            }
+
+            chunk[0][0] = 0; chunk[0][1] = 0;
+            chunk[1][0] = 0; chunk[1][1] = 0;
+            chunk[0][CHUNK_SIZE - 1] = 0; chunk[0][CHUNK_SIZE - 2] = 0;
+            chunk[1][CHUNK_SIZE - 1] = 0; chunk[1][CHUNK_SIZE - 2] = 0;
+            chunk[CHUNK_SIZE - 1][0] = 0; chunk[CHUNK_SIZE - 1][1] = 0;
+            chunk[CHUNK_SIZE - 2][0] = 0; chunk[CHUNK_SIZE - 2][1] = 0;
+            chunk[CHUNK_SIZE - 1][CHUNK_SIZE - 1] = 0; chunk[CHUNK_SIZE - 1][CHUNK_SIZE - 2] = 0;
+            chunk[CHUNK_SIZE - 2][CHUNK_SIZE - 1] = 0; chunk[CHUNK_SIZE - 2][CHUNK_SIZE - 2] = 0;
+
+            if (chunkX === 0 && chunkY === 0) {
+                for (let y = 0; y < 8; y++) {
+                    for (let x = 0; x < 8; x++) {
+                        chunk[y][x] = 0;
+                    }
+                }
+            }
+
+            // Clear area around glitch zone (just the single tile and immediate surroundings)
+            const glitchChunkX = Math.floor(GLITCH_ZONE.x / CHUNK_SIZE);
+            const glitchChunkY = Math.floor(GLITCH_ZONE.y / CHUNK_SIZE);
+            if (chunkX === glitchChunkX && chunkY === glitchChunkY) {
+                const localGX = ((GLITCH_ZONE.x % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
+                const localGY = ((GLITCH_ZONE.y % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
+                // Clear the glitch tile and a small path to it
+                for (let dy = -2; dy <= 2; dy++) {
+                    for (let dx = -2; dx <= 2; dx++) {
+                        const nx = localGX + dx;
+                        const ny = localGY + dy;
+                        if (nx >= 0 && nx < CHUNK_SIZE && ny >= 0 && ny < CHUNK_SIZE) {
+                            chunk[ny][nx] = 0;
+                        }
+                    }
+                }
+            }
+
+            chunks.set(key, chunk);
+            return chunk;
+        }
+
+        function getTile(worldX, worldY) {
+            const tileX = Math.floor(worldX);
+            const tileY = Math.floor(worldY);
+            const chunkX = Math.floor(tileX / CHUNK_SIZE);
+            const chunkY = Math.floor(tileY / CHUNK_SIZE);
+            const localX = ((tileX % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
+            const localY = ((tileY % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
+
+            const chunk = generateChunk(chunkX, chunkY);
+            return chunk[localY][localX];
+        }
+
+        // Check if tile is THE glitch tile (single block)
+        function isGlitchTile(tileX, tileY) {
+            return Math.floor(tileX) === GLITCH_ZONE.x && Math.floor(tileY) === GLITCH_ZONE.y;
+        }
+
+        // Check if player is on the glitch tile
+        function isOnGlitchTile(x, y) {
+            return Math.floor(x) === GLITCH_ZONE.x && Math.floor(y) === GLITCH_ZONE.y;
+        }
+
+        // Check if near glitch zone (for visual effects)
+        function isNearGlitchZone(x, y, range) {
+            const dx = x - GLITCH_ZONE.x;
+            const dy = y - GLITCH_ZONE.y;
+            return Math.sqrt(dx * dx + dy * dy) <= range;
+        }
+
+        // Check if tile should have an arrow (every 10 tiles on floor)
+        function shouldHaveArrow(tileX, tileY) {
+            if (getTile(tileX, tileY) === 1) return false;
+            return (tileX % ARROW_SPACING === 0) && (tileY % ARROW_SPACING === 0);
+        }
+
+        // Generate ground arrows for visible area
+        function updateGroundArrows() {
+            const playerTileX = Math.floor(player.x);
+            const playerTileY = Math.floor(player.y);
+            const checkRange = 20;
+
+            for (let dy = -checkRange; dy <= checkRange; dy++) {
+                for (let dx = -checkRange; dx <= checkRange; dx++) {
+                    const tileX = playerTileX + dx;
+                    const tileY = playerTileY + dy;
+                    const key = `${tileX},${tileY}`;
+
+                    if (!groundArrows.has(key) && shouldHaveArrow(tileX, tileY)) {
+                        const dirX = GLITCH_ZONE.x - tileX;
+                        const dirY = GLITCH_ZONE.y - tileY;
+                        const angle = Math.atan2(dirY, dirX);
+
+                        const seed = tileX * 1000 + tileY;
+                        const wobbles = [];
+                        for (let i = 0; i < 8; i++) {
+                            wobbles.push({
+                                x: (seededRandom(seed + i * 100) - 0.5) * 4,
+                                y: (seededRandom(seed + i * 200) - 0.5) * 4
+                            });
+                        }
+
+                        groundArrows.set(key, {
+                            x: tileX,
+                            y: tileY,
+                            angle: angle,
+                            wobbles: wobbles,
+                            thickness: 1.5 + seededRandom(seed + 500) * 1.5
+                        });
+                    }
+                }
+            }
+        }
+
+        function castRay(startTileX, startTileY, angle) {
+            const rayStep = 0.1;
+            let dist = 0;
+            const maxDist = VIEW_RANGE;
+
+            const dx = Math.cos(angle);
+            const dy = Math.sin(angle);
+
+            let x = startTileX;
+            let y = startTileY;
+
+            while (dist < maxDist) {
+                x += dx * rayStep;
+                y += dy * rayStep;
+                dist += rayStep;
+
+                const tileX = Math.floor(x);
+                const tileY = Math.floor(y);
+
+                if (getTile(tileX, tileY) === 1) {
+                    return { dist, hit: true, tileX, tileY };
+                }
+            }
+
+            return { dist: maxDist, hit: false };
+        }
+
+        function getVisibleTiles() {
+            const visible = new Map();
+            const playerTileX = Math.floor(player.x);
+            const playerTileY = Math.floor(player.y);
+
+            for (let dy = -VIEW_RANGE; dy <= VIEW_RANGE; dy++) {
+                for (let dx = -VIEW_RANGE; dx <= VIEW_RANGE; dx++) {
+                    const tileX = playerTileX + dx;
+                    const tileY = playerTileY + dy;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+
+                    if (dist <= VIEW_RANGE) {
+                        visible.set(`${tileX},${tileY}`, { visible: false, dist });
+                    }
+                }
+            }
+
+            const numRays = 360;
+            for (let i = 0; i < numRays; i++) {
+                const angle = (i / numRays) * Math.PI * 2;
+                const result = castRay(player.x, player.y, angle);
+
+                const steps = Math.ceil(result.dist / 0.2);
+                for (let s = 0; s <= steps; s++) {
+                    const checkDist = (s / steps) * result.dist;
+                    const checkX = player.x + Math.cos(angle) * checkDist;
+                    const checkY = player.y + Math.sin(angle) * checkDist;
+
+                    const tileX = Math.floor(checkX);
+                    const tileY = Math.floor(checkY);
+                    const key = `${tileX},${tileY}`;
+
+                    if (visible.has(key)) {
+                        visible.get(key).visible = true;
+                    }
+                }
+
+                if (result.hit) {
+                    const key = `${result.tileX},${result.tileY}`;
+                    if (visible.has(key)) {
+                        visible.get(key).visible = true;
+                    }
+                }
+            }
+
+            return visible;
+        }
+
+        function updateFlicker() {
+            const now = Date.now();
+            const timeSinceFlicker = now - lastFlicker;
+
+            if (!lightsOn && timeSinceFlicker >= FLICKER_DURATION) {
+                lightsOn = true;
+            }
+
+            if (lightsOn && timeSinceFlicker >= FLICKER_INTERVAL) {
+                lightsOn = false;
+                lastFlicker = now;
+            }
+        }
+
+        function updateCamera() {
+            const targetX = player.x * TILE_SIZE - canvas.width / 2;
+            const targetY = player.y * TILE_SIZE - canvas.height / 2;
+
+            camera.x += (targetX - camera.x) * 0.1;
+            camera.y += (targetY - camera.y) * 0.1;
+        }
+
+        function updateStamina() {
+            const staminaFill = document.getElementById('stamina-fill');
+
+            if (player.isSprinting && player.canSprint) {
+                player.stamina -= player.staminaDrain;
+                if (player.stamina <= 0) {
+                    player.stamina = 0;
+                    player.canSprint = false;
+                }
+            } else {
+                player.stamina += player.staminaRegen;
+                if (player.stamina >= player.maxStamina) {
+                    player.stamina = player.maxStamina;
+                }
+                if (player.stamina >= 20) {
+                    player.canSprint = true;
+                }
+            }
+
+            const percent = (player.stamina / player.maxStamina) * 100;
+            staminaFill.style.width = percent + '%';
+
+            staminaFill.classList.remove('low', 'depleted');
+            if (percent <= 10) {
+                staminaFill.classList.add('depleted');
+            } else if (percent <= 30) {
+                staminaFill.classList.add('low');
+            }
+        }
+
+        function updateSanity() {
+            const sanityFill = document.getElementById('sanity-fill');
+
+            player.sanity += player.sanityRate;
+
+            // Being near glitch zone reduces sanity
+            if (isNearGlitchZone(player.x, player.y, 3)) {
+                player.sanity -= 0.3;
+            }
+
+            player.sanity = Math.max(0, Math.min(player.maxSanity, player.sanity));
+
+            const percent = (player.sanity / player.maxSanity) * 100;
+            sanityFill.style.width = percent + '%';
+
+            sanityFill.classList.remove('warning', 'critical');
+            if (percent >= 80) {
+                sanityFill.classList.add('critical');
+            } else if (percent >= 50) {
+                sanityFill.classList.add('warning');
+            }
+
+            if (player.sanity >= 80) {
+                const now = Date.now();
+                const spawnInterval = 2000 - (player.sanity - 80) * 50;
+
+                if (now - lastHallucinationSpawn > spawnInterval) {
+                    spawnHallucination();
+                    lastHallucinationSpawn = now;
+                }
+            }
+        }
+
+        function spawnHallucination() {
+            const types = ['shadow', 'fake_wall', 'fake_path', 'whisper', 'doppelganger'];
+            const type = types[Math.floor(Math.random() * types.length)];
+
+            const angle = Math.random() * Math.PI * 2;
+            const dist = 2 + Math.random() * 3;
+
+            const hallucination = {
+                type,
+                x: player.x + Math.cos(angle) * dist,
+                y: player.y + Math.sin(angle) * dist,
+                life: 3000 + Math.random() * 2000,
+                born: Date.now(),
+                alpha: 0,
+                targetAlpha: 0.3 + Math.random() * 0.4,
+                wobble: Math.random() * Math.PI * 2
+            };
+
+            hallucinations.push(hallucination);
+        }
+
+        function updateHallucinations() {
+            const now = Date.now();
+
+            hallucinations = hallucinations.filter(h => {
+                const age = now - h.born;
+                if (age > h.life) return false;
+
+                const fadeTime = 500;
+                if (age < fadeTime) {
+                    h.alpha = (age / fadeTime) * h.targetAlpha;
+                } else if (age > h.life - fadeTime) {
+                    h.alpha = ((h.life - age) / fadeTime) * h.targetAlpha;
+                } else {
+                    h.alpha = h.targetAlpha;
+                }
+
+                h.wobble += 0.1;
+                return true;
+            });
+        }
+
+        function updatePlayer() {
+            if (escaped) return;
+
+            const dx = player.targetX - player.x;
+            const dy = player.targetY - player.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (dist > 0.01) {
+                player.x += dx * 0.15;
+                player.y += dy * 0.15;
+            } else {
+                player.x = player.targetX;
+                player.y = player.targetY;
+            }
+
+            // Update glitch intensity based on proximity
+            if (isNearGlitchZone(player.x, player.y, 5)) {
+                const distToGlitch = Math.sqrt(
+                    Math.pow(player.x - GLITCH_ZONE.x, 2) +
+                    Math.pow(player.y - GLITCH_ZONE.y, 2)
+                );
+                glitchIntensity = Math.max(0, 1 - distToGlitch / 5);
+            } else {
+                glitchIntensity = Math.max(0, glitchIntensity - 0.02);
+            }
+
+            // Check if player reached the glitch tile
+            if (isOnGlitchTile(player.x, player.y)) {
+                escaped = true;
+                document.getElementById('escape-text').style.display = 'block';
+            }
+
+            const distance = Math.floor(Math.sqrt(
+                Math.pow(player.y - startY, 2) +
+                Math.pow(player.x - 2, 2)
+            ));
+            document.getElementById('distance').textContent = distance;
+        }
+
+        function canMoveTo(x, y) {
+            const margin = 0.15;
+            return getTile(x - margin, y - margin) !== 1 &&
+                   getTile(x + margin, y - margin) !== 1 &&
+                   getTile(x - margin, y + margin) !== 1 &&
+                   getTile(x + margin, y + margin) !== 1;
+        }
+
+        function drawHandDrawnArrow(ctx, screenX, screenY, arrow) {
+            ctx.save();
+            ctx.translate(screenX + TILE_SIZE / 2, screenY + TILE_SIZE / 2);
+            ctx.rotate(arrow.angle);
+
+            const size = TILE_SIZE * 0.4;
+            const w = arrow.wobbles;
+
+            ctx.strokeStyle = 'rgba(20, 15, 10, 0.85)';
+            ctx.fillStyle = 'rgba(30, 25, 20, 0.7)';
+            ctx.lineWidth = arrow.thickness;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            ctx.beginPath();
+            ctx.moveTo(-size * 0.6 + w[0].x, w[0].y);
+            ctx.quadraticCurveTo(
+                -size * 0.2 + w[1].x, w[1].y,
+                size * 0.3 + w[2].x, w[2].y
+            );
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(size * 0.6 + w[3].x, w[3].y);
+            ctx.lineTo(size * 0.1 + w[4].x, -size * 0.4 + w[4].y);
+            ctx.lineTo(size * 0.2 + w[5].x, w[5].y);
+            ctx.lineTo(size * 0.1 + w[6].x, size * 0.4 + w[6].y);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.strokeStyle = 'rgba(40, 30, 20, 0.4)';
+            ctx.lineWidth = 0.5;
+            for (let i = 0; i < 3; i++) {
+                const sx = (seededRandom(arrow.x * 100 + arrow.y + i * 50) - 0.5) * size;
+                const sy = (seededRandom(arrow.x + arrow.y * 100 + i * 70) - 0.5) * size * 0.5;
+                ctx.beginPath();
+                ctx.moveTo(sx - 3, sy - 2);
+                ctx.lineTo(sx + 3, sy + 2);
+                ctx.stroke();
+            }
+
+            ctx.restore();
+        }
+
+        function drawHallucinations(ctx, visibleTiles) {
+            const now = Date.now();
+
+            for (const h of hallucinations) {
+                const screenX = h.x * TILE_SIZE - camera.x;
+                const screenY = h.y * TILE_SIZE - camera.y;
+
+                ctx.save();
+
+                switch (h.type) {
+                    case 'shadow':
+                        ctx.fillStyle = `rgba(20, 0, 30, ${h.alpha})`;
+                        ctx.beginPath();
+                        const wobbleX = Math.sin(h.wobble) * 5;
+                        ctx.ellipse(screenX + wobbleX, screenY, TILE_SIZE * 0.4, TILE_SIZE * 0.8, 0, 0, Math.PI * 2);
+                        ctx.fill();
+
+                        ctx.fillStyle = `rgba(255, 0, 100, ${h.alpha * 1.5})`;
+                        ctx.beginPath();
+                        ctx.arc(screenX - 8 + wobbleX, screenY - 15, 3, 0, Math.PI * 2);
+                        ctx.arc(screenX + 8 + wobbleX, screenY - 15, 3, 0, Math.PI * 2);
+                        ctx.fill();
+                        break;
+
+                    case 'fake_wall':
+                        ctx.fillStyle = `rgba(221, 170, 0, ${h.alpha * 0.7})`;
+                        ctx.fillRect(screenX - TILE_SIZE/2, screenY - TILE_SIZE/2, TILE_SIZE, TILE_SIZE);
+                        ctx.fillStyle = `rgba(50, 40, 0, ${h.alpha * 0.3})`;
+                        ctx.fillRect(screenX - TILE_SIZE/2 + 4, screenY - TILE_SIZE/2 + 4, TILE_SIZE - 8, TILE_SIZE - 8);
+                        break;
+
+                    case 'fake_path':
+                        ctx.fillStyle = `rgba(0, 0, 0, ${h.alpha * 0.8})`;
+                        ctx.fillRect(screenX - TILE_SIZE/2, screenY - TILE_SIZE/2, TILE_SIZE, TILE_SIZE);
+                        break;
+
+                    case 'whisper':
+                        ctx.fillStyle = `rgba(150, 100, 200, ${h.alpha})`;
+                        ctx.font = '14px Courier New';
+                        ctx.textAlign = 'center';
+                        const texts = ['help...', 'run', 'behind you', '...', 'escape', 'lost'];
+                        const text = texts[Math.floor(h.born / 1000) % texts.length];
+                        ctx.fillText(text, screenX + Math.sin(h.wobble) * 10, screenY + Math.cos(h.wobble * 0.7) * 5);
+                        break;
+
+                    case 'doppelganger':
+                        ctx.fillStyle = `rgba(255, 68, 68, ${h.alpha * 0.7})`;
+                        ctx.beginPath();
+                        ctx.arc(screenX + Math.sin(h.wobble * 2) * 3, screenY, TILE_SIZE / 3, 0, Math.PI * 2);
+                        ctx.fill();
+
+                        ctx.shadowColor = `rgba(255, 0, 0, ${h.alpha})`;
+                        ctx.shadowBlur = 10;
+                        ctx.fill();
+                        ctx.shadowBlur = 0;
+                        break;
+                }
+
+                ctx.restore();
+            }
+        }
+
+        function draw() {
+            ctx.fillStyle = DARK_COLOR;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Sanity visual effects
+            if (player.sanity >= 60) {
+                const intensity = (player.sanity - 60) / 40;
+
+                if (player.sanity >= 80) {
+                    const shake = intensity * 3;
+                    ctx.translate(
+                        (Math.random() - 0.5) * shake,
+                        (Math.random() - 0.5) * shake
+                    );
+                }
+
+                const vignetteAlpha = intensity * 0.3;
+                const vignette = ctx.createRadialGradient(
+                    canvas.width / 2, canvas.height / 2, canvas.width * 0.2,
+                    canvas.width / 2, canvas.height / 2, canvas.width * 0.7
+                );
+                vignette.addColorStop(0, 'rgba(0, 0, 0, 0)');
+                vignette.addColorStop(1, `rgba(50, 0, 50, ${vignetteAlpha})`);
+                ctx.fillStyle = vignette;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+
+            if (glitchIntensity > 0) {
+                ctx.save();
+                for (let i = 0; i < glitchIntensity * 10; i++) {
+                    const y = Math.random() * canvas.height;
+                    const h = Math.random() * 5 + 2;
+                    ctx.fillStyle = `rgba(0, 255, 170, ${glitchIntensity * 0.3})`;
+                    ctx.fillRect(0, y, canvas.width, h);
+                }
+                ctx.restore();
+            }
+
+            if (!lightsOn && !escaped) {
+                return;
+            }
+
+            updateGroundArrows();
+
+            const visibleTiles = getVisibleTiles();
+            const playerScreenX = player.x * TILE_SIZE - camera.x;
+            const playerScreenY = player.y * TILE_SIZE - camera.y;
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(playerScreenX, playerScreenY, VIEW_RANGE * TILE_SIZE, 0, Math.PI * 2);
+            ctx.clip();
+
+            visibleTiles.forEach((data, key) => {
+                const [tileX, tileY] = key.split(',').map(Number);
+                const screenX = tileX * TILE_SIZE - camera.x;
+                const screenY = tileY * TILE_SIZE - camera.y;
+
+                const isGlitch = isGlitchTile(tileX, tileY);
+
+                if (data.visible) {
+                    if (isGlitch) {
+                        // Draw single glitchy tile
+                        const glitchOffset = Math.sin(Date.now() / 50 + tileX + tileY) * 3;
+                        ctx.fillStyle = Math.random() > 0.1 ? GLITCH_COLOR : '#ff00ff';
+                        ctx.fillRect(screenX + glitchOffset, screenY, TILE_SIZE, TILE_SIZE);
+
+                        // Scanlines
+                        ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+                        for (let ly = 0; ly < TILE_SIZE; ly += 2) {
+                            ctx.fillRect(screenX, screenY + ly, TILE_SIZE, 1);
+                        }
+
+                        // Glowing border
+                        ctx.strokeStyle = `rgba(0, 255, 170, ${0.5 + Math.sin(Date.now() / 200) * 0.3})`;
+                        ctx.lineWidth = 2;
+                        ctx.strokeRect(screenX + 1, screenY + 1, TILE_SIZE - 2, TILE_SIZE - 2);
+                    } else {
+                        ctx.fillStyle = FLOOR_COLOR;
+                        ctx.fillRect(screenX, screenY, TILE_SIZE, TILE_SIZE);
+
+                        ctx.strokeStyle = 'rgba(100, 80, 0, 0.5)';
+                        ctx.strokeRect(screenX, screenY, TILE_SIZE, TILE_SIZE);
+
+                        const tile = getTile(tileX, tileY);
+                        if (tile === 1) {
+                            ctx.fillStyle = 'rgba(50, 40, 0, 0.3)';
+                            ctx.fillRect(screenX + 2, screenY + 2, TILE_SIZE - 4, TILE_SIZE - 4);
+                        }
+                    }
+
+                    // Draw hand-drawn arrows every 10 tiles
+                    const arrowKey = `${tileX},${tileY}`;
+                    if (groundArrows.has(arrowKey) && getTile(tileX, tileY) === 0 && !isGlitch) {
+                        const arrow = groundArrows.get(arrowKey);
+                        drawHandDrawnArrow(ctx, screenX, screenY, arrow);
+                    }
+                } else {
+                    if (isGlitch) {
+                        ctx.fillStyle = `rgba(0, 255, 170, ${0.1 + Math.random() * 0.1})`;
+                    } else {
+                        ctx.fillStyle = 'rgba(80, 60, 0, 0.3)';
+                    }
+                    ctx.fillRect(screenX, screenY, TILE_SIZE, TILE_SIZE);
+                }
+            });
+
+            drawHallucinations(ctx, visibleTiles);
+
+            ctx.restore();
+
+            ctx.strokeStyle = glitchIntensity > 0 ? GLITCH_COLOR : '#aa8800';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(playerScreenX, playerScreenY, VIEW_RANGE * TILE_SIZE, 0, Math.PI * 2);
+            ctx.stroke();
+
+            const gradient = ctx.createRadialGradient(
+                playerScreenX, playerScreenY, VIEW_RANGE * TILE_SIZE - 20,
+                playerScreenX, playerScreenY, VIEW_RANGE * TILE_SIZE + 10
+            );
+            gradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0.8)');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            if (!escaped) {
+                ctx.fillStyle = PLAYER_COLOR;
+                ctx.beginPath();
+                ctx.arc(playerScreenX, playerScreenY, TILE_SIZE / 3, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.shadowColor = '#ff4444';
+                ctx.shadowBlur = 15;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+        }
+
+        const keys = {};
+        document.addEventListener('keydown', (e) => {
+            keys[e.key.toLowerCase()] = true;
+            if (e.key === 'Shift') keys['shift'] = true;
+            if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(e.key.toLowerCase())) {
+                e.preventDefault();
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            keys[e.key.toLowerCase()] = false;
+            if (e.key === 'Shift') keys['shift'] = false;
+        });
+
+        function handleInput() {
+            if (escaped) return;
+
+            let dx = 0, dy = 0;
+
+            if (keys['w'] || keys['arrowup']) dy = -1;
+            if (keys['s'] || keys['arrowdown']) dy = 1;
+            if (keys['a'] || keys['arrowleft']) dx = -1;
+            if (keys['d'] || keys['arrowright']) dx = 1;
+
+            player.isSprinting = keys['shift'] && player.canSprint && (dx !== 0 || dy !== 0);
+
+            if (dx !== 0 || dy !== 0) {
+                if (dx !== 0 && dy !== 0) {
+                    dx *= 0.707;
+                    dy *= 0.707;
+                }
+
+                const moveSpeed = player.isSprinting ? player.sprintSpeed : player.walkSpeed;
+                const newX = player.targetX + dx * moveSpeed;
+                const newY = player.targetY + dy * moveSpeed;
+
+                if (canMoveTo(newX, newY)) {
+                    player.targetX = newX;
+                    player.targetY = newY;
+                }
+                else if (canMoveTo(newX, player.targetY)) {
+                    player.targetX = newX;
+                }
+                else if (canMoveTo(player.targetX, newY)) {
+                    player.targetY = newY;
+                }
+            }
+        }
+
+        function gameLoop() {
+            handleInput();
+            updatePlayer();
+            updateStamina();
+            updateSanity();
+            updateHallucinations();
+            updateCamera();
+            updateFlicker();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        generateChunk(0, 0);
+        gameLoop();
+    </script>
+</body>
+</html>

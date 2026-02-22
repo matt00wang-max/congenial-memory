@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emoji & Text Playground</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #fff;
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 30px;
+            background: linear-gradient(45deg, #ff6b6b, #feca57, #48dbfb, #ff9ff3);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* Emoji Picker Section */
+        .section {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 25px;
+            margin-bottom: 25px;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            color: #feca57;
+        }
+
+        .emoji-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .emoji-btn {
+            font-size: 2rem;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .emoji-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: scale(1.2);
+        }
+
+        .emoji-btn:active {
+            transform: scale(0.9);
+        }
+
+        /* Emoji Categories */
+        .category-tabs {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        .tab-btn {
+            padding: 10px 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            border-radius: 20px;
+            color: #fff;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .tab-btn.active {
+            background: linear-gradient(45deg, #ff6b6b, #feca57);
+        }
+
+        .tab-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Canvas Area */
+        .canvas-area {
+            min-height: 200px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+            cursor: crosshair;
+        }
+
+        .placed-emoji {
+            position: absolute;
+            font-size: 2rem;
+            cursor: move;
+            user-select: none;
+            transition: transform 0.1s ease;
+        }
+
+        .placed-emoji:hover {
+            transform: scale(1.3);
+        }
+
+        /* Text Styling */
+        .text-input-area {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        .text-input {
+            flex: 1;
+            min-width: 200px;
+            padding: 15px;
+            font-size: 1.2rem;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.3);
+            color: #fff;
+        }
+
+        .text-input:focus {
+            outline: none;
+            border-color: #feca57;
+        }
+
+        /* Style Buttons */
+        .style-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        .style-btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            color: #fff;
+        }
+
+        .style-btn:hover {
+            transform: translateY(-3px);
+        }
+
+        .btn-rainbow { background: linear-gradient(45deg, #ff6b6b, #feca57, #48dbfb, #ff9ff3); }
+        .btn-neon { background: #39ff14; color: #000; box-shadow: 0 0 20px #39ff14; }
+        .btn-fire { background: linear-gradient(45deg, #ff4500, #ff8c00); }
+        .btn-ice { background: linear-gradient(45deg, #00d4ff, #7b68ee); }
+        .btn-glitch { background: #ff00ff; }
+        .btn-wave { background: linear-gradient(45deg, #667eea, #764ba2); }
+        .btn-bounce { background: linear-gradient(45deg, #f093fb, #f5576c); }
+        .btn-shake { background: linear-gradient(45deg, #4facfe, #00f2fe); }
+
+        /* Text Display */
+        .text-display {
+            font-size: 3rem;
+            text-align: center;
+            padding: 40px;
+            min-height: 150px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .text-display span {
+            display: inline-block;
+        }
+
+        /* Animations */
+        .rainbow {
+            background: linear-gradient(45deg, #ff6b6b, #feca57, #48dbfb, #ff9ff3, #ff6b6b);
+            background-size: 400% 400%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: rainbowMove 3s ease infinite;
+        }
+
+        @keyframes rainbowMove {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .neon {
+            color: #39ff14;
+            text-shadow:
+                0 0 5px #39ff14,
+                0 0 10px #39ff14,
+                0 0 20px #39ff14,
+                0 0 40px #39ff14;
+            animation: neonPulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes neonPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .fire {
+            color: #ff4500;
+            text-shadow:
+                0 0 10px #ff4500,
+                0 0 20px #ff8c00,
+                0 0 30px #ffd700;
+            animation: fireFlicker 0.5s ease-in-out infinite alternate;
+        }
+
+        @keyframes fireFlicker {
+            0% { text-shadow: 0 0 10px #ff4500, 0 0 20px #ff8c00, 0 0 30px #ffd700; }
+            100% { text-shadow: 0 0 15px #ff4500, 0 0 25px #ff8c00, 0 0 40px #ffd700, 0 -5px 50px #ff4500; }
+        }
+
+        .ice {
+            color: #00d4ff;
+            text-shadow:
+                0 0 10px #00d4ff,
+                0 0 20px #7b68ee,
+                0 0 30px #00bfff;
+            animation: iceShimmer 2s ease-in-out infinite;
+        }
+
+        @keyframes iceShimmer {
+            0%, 100% { filter: brightness(1); }
+            50% { filter: brightness(1.3); }
+        }
+
+        .glitch {
+            animation: glitchEffect 0.3s infinite;
+            color: #fff;
+        }
+
+        @keyframes glitchEffect {
+            0% { text-shadow: 2px 0 #ff00ff, -2px 0 #00ffff; }
+            25% { text-shadow: -2px 0 #ff00ff, 2px 0 #00ffff; }
+            50% { text-shadow: 2px 2px #ff00ff, -2px -2px #00ffff; }
+            75% { text-shadow: -2px 2px #ff00ff, 2px -2px #00ffff; }
+            100% { text-shadow: 2px 0 #ff00ff, -2px 0 #00ffff; }
+        }
+
+        .wave span {
+            animation: waveAnim 1s ease-in-out infinite;
+        }
+
+        @keyframes waveAnim {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
+        }
+
+        .bounce span {
+            animation: bounceAnim 0.6s ease infinite;
+        }
+
+        @keyframes bounceAnim {
+            0%, 100% { transform: translateY(0) scale(1); }
+            50% { transform: translateY(-15px) scale(1.1); }
+        }
+
+        .shake {
+            animation: shakeAnim 0.5s ease-in-out infinite;
+        }
+
+        @keyframes shakeAnim {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px) rotate(-2deg); }
+            75% { transform: translateX(5px) rotate(2deg); }
+        }
+
+        /* Floating Emojis Game */
+        .game-area {
+            height: 300px;
+            background: linear-gradient(to bottom, #0c0c1e, #1a1a3e);
+            border-radius: 15px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .floating-emoji {
+            position: absolute;
+            font-size: 2.5rem;
+            cursor: pointer;
+            animation: floatUp 4s linear forwards;
+            transition: transform 0.1s;
+        }
+
+        .floating-emoji:hover {
+            transform: scale(1.5);
+        }
+
+        @keyframes floatUp {
+            0% { bottom: -50px; opacity: 1; }
+            100% { bottom: 350px; opacity: 0; }
+        }
+
+        .score-display {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            font-size: 1.5rem;
+            color: #feca57;
+        }
+
+        .game-controls {
+            display: flex;
+            gap: 15px;
+            margin-top: 15px;
+            justify-content: center;
+        }
+
+        .game-btn {
+            padding: 15px 30px;
+            font-size: 1.1rem;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .game-btn.start {
+            background: linear-gradient(45deg, #00b894, #00cec9);
+            color: #fff;
+        }
+
+        .game-btn.stop {
+            background: linear-gradient(45deg, #e74c3c, #c0392b);
+            color: #fff;
+        }
+
+        .game-btn:hover {
+            transform: translateY(-3px);
+        }
+
+        /* Copy Section */
+        .copy-section {
+            margin-top: 20px;
+        }
+
+        .emoji-display {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            min-height: 80px;
+        }
+
+        .selected-emoji {
+            font-size: 2rem;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .copy-btn {
+            margin-top: 15px;
+            padding: 15px 30px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            border: none;
+            border-radius: 10px;
+            color: #fff;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .copy-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .clear-btn {
+            margin-top: 15px;
+            margin-left: 10px;
+            padding: 15px 30px;
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            border-radius: 10px;
+            color: #fff;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .clear-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎨 Emoji & Text Playground 🎮</h1>
+
+        <!-- Emoji Picker -->
+        <div class="section">
+            <h2 class="section-title">📦 Emoji Collection (click to add)</h2>
+
+            <div class="category-tabs">
+                <button class="tab-btn active" onclick="showCategory('faces')">😀 Faces</button>
+                <button class="tab-btn" onclick="showCategory('animals')">🐱 Animals</button>
+                <button class="tab-btn" onclick="showCategory('food')">🍕 Food</button>
+                <button class="tab-btn" onclick="showCategory('activities')">⚽ Activities</button>
+                <button class="tab-btn" onclick="showCategory('symbols')">❤️ Symbols</button>
+                <button class="tab-btn" onclick="showCategory('nature')">🌸 Nature</button>
+            </div>
+
+            <div class="emoji-grid" id="emojiGrid"></div>
+
+            <div class="copy-section">
+                <h3 style="margin-bottom: 10px; color: #aaa;">Your Selected Emojis:</h3>
+                <div class="emoji-display" id="selectedEmojis"></div>
+                <button class="copy-btn" onclick="copyEmojis()">📋 Copy to Clipboard</button>
+                <button class="clear-btn" onclick="clearEmojis()">🗑️ Clear</button>
+            </div>
+        </div>
+
+        <!-- Text Effects -->
+        <div class="section">
+            <h2 class="section-title">✨ Text Effects</h2>
+
+            <div class="text-input-area">
+                <input type="text" class="text-input" id="textInput" placeholder="Type something cool..." value="Hello World!">
+            </div>
+
+            <div class="style-buttons">
+                <button class="style-btn btn-rainbow" onclick="applyStyle('rainbow')">🌈 Rainbow</button>
+                <button class="style-btn btn-neon" onclick="applyStyle('neon')">💚 Neon</button>
+                <button class="style-btn btn-fire" onclick="applyStyle('fire')">🔥 Fire</button>
+                <button class="style-btn btn-ice" onclick="applyStyle('ice')">❄️ Ice</button>
+                <button class="style-btn btn-glitch" onclick="applyStyle('glitch')">👾 Glitch</button>
+                <button class="style-btn btn-wave" onclick="applyStyle('wave')">🌊 Wave</button>
+                <button class="style-btn btn-bounce" onclick="applyStyle('bounce')">🏀 Bounce</button>
+                <button class="style-btn btn-shake" onclick="applyStyle('shake')">📳 Shake</button>
+            </div>
+
+            <div class="text-display" id="textDisplay">Hello World!</div>
+        </div>
+
+        <!-- Emoji Catch Game -->
+        <div class="section">
+            <h2 class="section-title">🎮 Emoji Catch Game</h2>
+            <p style="color: #aaa; margin-bottom: 15px;">Click the emojis before they float away!</p>
+
+            <div class="game-area" id="gameArea">
+                <div class="score-display">Score: <span id="gameScore">0</span></div>
+            </div>
+
+            <div class="game-controls">
+                <button class="game-btn start" onclick="startGame()">▶️ Start Game</button>
+                <button class="game-btn stop" onclick="stopGame()">⏹️ Stop Game</button>
+            </div>
+        </div>
+
+        <!-- Emoji Canvas -->
+        <div class="section">
+            <h2 class="section-title">🖼️ Emoji Canvas (click to place emojis)</h2>
+            <p style="color: #aaa; margin-bottom: 15px;">Select an emoji above, then click on the canvas to place it!</p>
+
+            <div class="canvas-area" id="canvasArea" onclick="placeEmoji(event)"></div>
+
+            <button class="clear-btn" onclick="clearCanvas()" style="margin-top: 15px;">🗑️ Clear Canvas</button>
+        </div>
+    </div>
+
+    <script>
+        // Emoji Data
+        const emojiCategories = {
+            faces: ['😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂', '🙂', '😊', '😇', '🥰', '😍', '🤩', '😘', '😋', '😜', '🤪', '😎', '🤓', '🧐', '🤨', '😏', '🥳', '😢', '😭', '😤', '🤯', '😱', '🥶', '🥵', '😈', '👿', '💀', '👻', '👽', '🤖', '🎃', '😺', '😸'],
+            animals: ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🐔', '🐧', '🐦', '🐤', '🦆', '🦅', '🦉', '🦇', '🐺', '🐗', '🐴', '🦄', '🐝', '🐛', '🦋', '🐌', '🐞', '🐜', '🦟', '🐢', '🐍', '🦎', '🦖', '🦕', '🐙', '🦑', '🦐', '🦞', '🦀', '🐡', '🐠', '🐟', '🐬', '🐳', '🐋', '🦈', '🐊'],
+            food: ['🍎', '🍐', '🍊', '🍋', '🍌', '🍉', '🍇', '🍓', '🫐', '🍈', '🍒', '🍑', '🥭', '🍍', '🥥', '🥝', '🍅', '🥑', '🍆', '🥔', '🥕', '🌽', '🌶️', '🥒', '🥬', '🥦', '🧄', '🧅', '🍄', '🥜', '🌰', '🍞', '🥐', '🥖', '🥨', '🧀', '🥚', '🍳', '🧈', '🥞', '🧇', '🥓', '🍔', '🍟', '🍕', '🌭', '🥪', '🌮', '🌯', '🍜', '🍝', '🍣', '🍱', '🍩', '🍪', '🎂', '🍰', '🧁', '🍫', '🍬', '🍭', '🍮', '🍦', '🍧'],
+            activities: ['⚽', '🏀', '🏈', '⚾', '🥎', '🎾', '🏐', '🏉', '🥏', '🎱', '🪀', '🏓', '🏸', '🏒', '🏑', '🥍', '🏏', '🪃', '🥅', '⛳', '🪁', '🏹', '🎣', '🤿', '🥊', '🥋', '🎽', '🛹', '🛼', '🛷', '⛸️', '🥌', '🎿', '⛷️', '🏂', '🪂', '🏋️', '🤸', '🤺', '⛹️', '🤾', '🏌️', '🏇', '🧘', '🏄', '🏊', '🤽', '🚣', '🧗', '🚴', '🎮', '🎯', '🎲', '🧩', '🎰', '🎳'],
+            symbols: ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔', '❤️‍🔥', '❤️‍🩹', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '💟', '☮️', '✝️', '☪️', '🕉️', '☸️', '✡️', '🔯', '🕎', '☯️', '☦️', '🛐', '⛎', '♈', '♉', '♊', '♋', '♌', '♍', '♎', '♏', '♐', '♑', '♒', '♓', '🆔', '⚛️', '🉑', '☢️', '☣️', '📴', '📳', '🈶', '🈚', '🈸', '🈺', '🈷️', '✴️', '🆚', '💮', '🉐', '㊙️', '㊗️', '🈴', '🈵', '🈹', '🈲', '🅰️', '🅱️', '🆎', '🆑', '🅾️', '🆘', '❌', '⭕', '🛑', '⛔', '📛', '🚫', '💯', '💢', '♨️', '🚷', '🚯', '🚳', '🚱', '🔞', '📵', '🚭', '❗', '❕', '❓', '❔', '‼️', '⁉️', '🔅', '🔆', '〽️', '⚠️', '🚸', '🔱', '⚜️', '🔰', '♻️', '✅', '🈯', '💹', '❇️', '✳️', '❎', '🌐', '💠', 'Ⓜ️', '🌀', '💤', '🏧', '🚾', '♿', '🅿️', '🛗', '🈳', '🈂️', '🛂', '🛃', '🛄', '🛅', '🚹', '🚺', '🚼', '⚧️', '🚻', '🚮', '🎦', '📶', '🈁', '🔣', 'ℹ️', '🔤', '🔡', '🔠', '🆖', '🆗', '🆙', '🆒', '🆕', '🆓', '0️⃣', '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟', '🔢', '#️⃣', '*️⃣', '⏏️', '▶️', '⏸️', '⏯️', '⏹️', '⏺️', '⏭️', '⏮️', '⏩', '⏪', '⏫', '⏬', '◀️', '🔼', '🔽', '➡️', '⬅️', '⬆️', '⬇️', '↗️', '↘️', '↙️', '↖️', '↕️', '↔️', '↪️', '↩️', '⤴️', '⤵️', '🔀', '🔁', '🔂', '🔄', '🔃', '🎵', '🎶', '➕', '➖', '➗', '✖️', '🟰', '♾️', '💲', '💱', '™️', '©️', '®️', '👁️‍🗨️', '🔚', '🔙', '🔛', '🔝', '🔜', '〰️', '➰', '➿', '✔️', '☑️', '🔘', '🔴', '🟠', '🟡', '🟢', '🔵', '🟣', '⚫', '⚪', '🟤', '🔺', '🔻', '🔸', '🔹', '🔶', '🔷', '🔳', '🔲', '▪️', '▫️', '◾', '◽', '◼️', '◻️', '🟥', '🟧', '🟨', '🟩', '🟦', '🟪', '⬛', '⬜', '🟫', '🔈', '🔇', '🔉', '🔊', '🔔', '🔕', '📣', '📢', '💬', '💭', '🗯️', '♠️', '♣️', '♥️', '♦️', '🃏', '🎴', '🀄', '🕐', '🕑', '🕒', '🕓', '🕔', '🕕', '🕖', '🕗', '🕘', '🕙', '🕚', '🕛', '🕜', '🕝', '🕞', '🕟', '🕠', '🕡', '🕢', '🕣', '🕤', '🕥', '🕦', '🕧'],
+            nature: ['🌸', '💮', '🏵️', '🌹', '🥀', '🌺', '🌻', '🌼', '🌷', '🌱', '🪴', '🌲', '🌳', '🌴', '🌵', '🌾', '🌿', '☘️', '🍀', '🍁', '🍂', '🍃', '🍄', '🌰', '🦀', '🦞', '🦐', '🦑', '🌍', '🌎', '🌏', '🌐', '🪨', '🌑', '🌒', '🌓', '🌔', '🌕', '🌖', '🌗', '🌘', '🌙', '🌚', '🌛', '🌜', '☀️', '🌝', '🌞', '⭐', '🌟', '🌠', '🌌', '☁️', '⛅', '⛈️', '🌤️', '🌥️', '🌦️', '🌧️', '🌨️', '🌩️', '🌪️', '🌫️', '🌬️', '🌀', '🌈', '🌂', '☂️', '☔', '⛱️', '⚡', '❄️', '☃️', '⛄', '☄️', '🔥', '💧', '🌊']
+        };
+
+        let selectedEmojis = [];
+        let currentCategory = 'faces';
+        let currentEmoji = '😀';
+        let gameInterval = null;
+        let gameScore = 0;
+
+        // Show emoji category
+        function showCategory(category) {
+            currentCategory = category;
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            renderEmojis();
+        }
+
+        // Render emojis
+        function renderEmojis() {
+            const grid = document.getElementById('emojiGrid');
+            grid.innerHTML = '';
+            emojiCategories[currentCategory].forEach(emoji => {
+                const btn = document.createElement('button');
+                btn.className = 'emoji-btn';
+                btn.textContent = emoji;
+                btn.onclick = () => selectEmoji(emoji);
+                grid.appendChild(btn);
+            });
+        }
+
+        // Select emoji
+        function selectEmoji(emoji) {
+            currentEmoji = emoji;
+            selectedEmojis.push(emoji);
+            renderSelectedEmojis();
+        }
+
+        // Render selected emojis
+        function renderSelectedEmojis() {
+            const container = document.getElementById('selectedEmojis');
+            container.innerHTML = '';
+            selectedEmojis.forEach((emoji, index) => {
+                const span = document.createElement('span');
+                span.className = 'selected-emoji';
+                span.textContent = emoji;
+                span.onclick = () => {
+                    selectedEmojis.splice(index, 1);
+                    renderSelectedEmojis();
+                };
+                container.appendChild(span);
+            });
+        }
+
+        // Copy emojis
+        function copyEmojis() {
+            const text = selectedEmojis.join('');
+            navigator.clipboard.writeText(text).then(() => {
+                alert('Copied: ' + text);
+            });
+        }
+
+        // Clear emojis
+        function clearEmojis() {
+            selectedEmojis = [];
+            renderSelectedEmojis();
+        }
+
+        // Text Effects
+        function applyStyle(style) {
+            const text = document.getElementById('textInput').value;
+            const display = document.getElementById('textDisplay');
+
+            if (style === 'wave' || style === 'bounce') {
+                // Split text into individual characters with delays
+                display.innerHTML = '';
+                display.className = 'text-display ' + style;
+                text.split('').forEach((char, i) => {
+                    const span = document.createElement('span');
+                    span.textContent = char === ' ' ? '\u00A0' : char;
+                    span.style.animationDelay = (i * 0.1) + 's';
+                    display.appendChild(span);
+                });
+            } else {
+                display.className = 'text-display ' + style;
+                display.textContent = text;
+            }
+        }
+
+        // Update text display on input
+        document.getElementById('textInput').addEventListener('input', (e) => {
+            const display = document.getElementById('textDisplay');
+            display.textContent = e.target.value || 'Type something...';
+        });
+
+        // Emoji Catch Game
+        function startGame() {
+            if (gameInterval) return;
+            gameScore = 0;
+            document.getElementById('gameScore').textContent = '0';
+
+            gameInterval = setInterval(spawnEmoji, 800);
+        }
+
+        function stopGame() {
+            if (gameInterval) {
+                clearInterval(gameInterval);
+                gameInterval = null;
+            }
+        }
+
+        function spawnEmoji() {
+            const gameArea = document.getElementById('gameArea');
+            const allEmojis = Object.values(emojiCategories).flat();
+            const randomEmoji = allEmojis[Math.floor(Math.random() * allEmojis.length)];
+
+            const emoji = document.createElement('div');
+            emoji.className = 'floating-emoji';
+            emoji.textContent = randomEmoji;
+            emoji.style.left = Math.random() * (gameArea.offsetWidth - 50) + 'px';
+            emoji.style.animationDuration = (3 + Math.random() * 2) + 's';
+
+            emoji.onclick = (e) => {
+                e.stopPropagation();
+                gameScore += 10;
+                document.getElementById('gameScore').textContent = gameScore;
+                emoji.remove();
+            };
+
+            gameArea.appendChild(emoji);
+
+            // Remove after animation
+            setTimeout(() => emoji.remove(), 5000);
+        }
+
+        // Emoji Canvas
+        function placeEmoji(event) {
+            const canvas = document.getElementById('canvasArea');
+            const rect = canvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+
+            const emoji = document.createElement('div');
+            emoji.className = 'placed-emoji';
+            emoji.textContent = currentEmoji;
+            emoji.style.left = (x - 15) + 'px';
+            emoji.style.top = (y - 15) + 'px';
+
+            // Make draggable
+            emoji.onmousedown = startDrag;
+
+            canvas.appendChild(emoji);
+        }
+
+        function startDrag(e) {
+            e.stopPropagation();
+            const emoji = e.target;
+            const canvas = document.getElementById('canvasArea');
+            const rect = canvas.getBoundingClientRect();
+
+            function onMove(e) {
+                emoji.style.left = (e.clientX - rect.left - 15) + 'px';
+                emoji.style.top = (e.clientY - rect.top - 15) + 'px';
+            }
+
+            function onUp() {
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+            }
+
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+        }
+
+        function clearCanvas() {
+            document.getElementById('canvasArea').innerHTML = '';
+        }
+
+        // Initialize
+        renderEmojis();
+    </script>
+</body>
+</html>
