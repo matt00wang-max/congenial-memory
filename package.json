@@ -1,0 +1,12 @@
+{
+  "name": "battle-royale-server",
+  "version": "1.0.0",
+  "description": "Multiplayer server for Battle Royale: Last One Standing",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.16.0"
+  }
+}

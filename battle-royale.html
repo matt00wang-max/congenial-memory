@@ -22,7 +22,7 @@ canvas { display: block; }
 #alive-count { color: #f1c40f; font-size: 22px; font-weight: bold; text-shadow: 2px 2px 4px #000; text-align: right; }
 #weapon-info { color: #fff; font-size: 14px; text-shadow: 1px 1px 2px #000; text-align: right; }
 #kill-count { color: #e74c3c; font-size: 16px; font-weight: bold; text-shadow: 1px 1px 2px #000; text-align: right; }
-#minimap { position: fixed; bottom: 15px; right: 15px; border: 2px solid rgba(255,255,255,0.4); border-radius: 6px; z-index: 10; }
+#minimap { position: fixed; bottom: 15px; right: 15px; border: 2px solid rgba(255,255,255,0.4); border-radius: 6px; z-index: 10; cursor: pointer; transition: width 0.2s, height 0.2s; }
 #kill-feed { position: fixed; top: 80px; right: 15px; z-index: 10; pointer-events: none; }
 .kill-msg { color: #fff; font-size: 13px; padding: 4px 10px; background: rgba(0,0,0,0.5); border-radius: 4px; margin-bottom: 3px; text-shadow: 1px 1px 1px #000; }
 #inventory { position: fixed; bottom: 15px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; z-index: 10; pointer-events: none; }
@@ -131,9 +131,15 @@ canvas { display: block; }
     <span style="color:#f1c40f">Each gun uses its own ammo type!</span><br>
     <span style="color:#2ecc71">RETREAT ZONE</span> - Marked on map from the start! Survive 30 seconds inside to extract with a grade (F to SUPER)!<br>
     <span style="color:#f39c12">QUESTS</span> - Complete quests to boost your grade! Turn Valves, Drill a Bank Vault, Find a Keycard [E to interact]<br>
-    <span style="color:#e67e22">VEHICLES</span> - Buggies, Trucks &amp; ATVs spawn on the map! [E] Enter/Exit | WASD to drive | Run over enemies!
+    <span style="color:#e67e22">VEHICLES</span> - Buggies, Trucks, ATVs, Tanks &amp; Helicopters! [E] Enter/Exit | WASD to drive | Tanks: Click to fire cannon | Helis: fly over everything!
   </div>
-  <button onclick="startGame()">DROP IN</button>
+  <div style="margin-bottom:15px"><input id="username-input" type="text" placeholder="Enter your name..." maxlength="16" style="padding:10px 18px;font-size:16px;border:2px solid #e74c3c;border-radius:6px;background:#222;color:#fff;text-align:center;width:220px;outline:none;font-family:inherit"></div>
+  <div style="display:flex;gap:12px">
+    <button onclick="startGame()">DROP IN (Solo)</button>
+    <button onclick="startMultiplayer()" style="background:#3498db">MULTIPLAYER</button>
+  </div>
+  <div id="mp-status" style="margin-top:10px;color:#aaa;font-size:14px;display:none"></div>
+  <div style="margin-top:8px"><input id="server-input" type="text" placeholder="Server (leave blank for localhost)" maxlength="100" style="padding:8px 14px;font-size:14px;border:2px solid #3498db;border-radius:6px;background:#222;color:#fff;text-align:center;width:300px;outline:none;font-family:inherit"></div>
 </div>
 
 <script>
@@ -146,6 +152,25 @@ canvas.height = window.innerHeight;
 window.addEventListener('resize', () => {
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
+  if (minimapExpanded) updateMinimapSize(true);
+});
+
+// ─── Expandable Minimap ───
+let minimapExpanded = false;
+function updateMinimapSize(expanded) {
+  if (expanded) {
+    const mw = Math.floor(canvas.width / 2);
+    const mh = Math.floor(canvas.height / 2);
+    miniCanvas.width = mw;
+    miniCanvas.height = mh;
+  } else {
+    miniCanvas.width = 160;
+    miniCanvas.height = 160;
+  }
+}
+miniCanvas.addEventListener('click', () => {
+  minimapExpanded = !minimapExpanded;
+  updateMinimapSize(minimapExpanded);
 });
 
 // ─── Constants ───
@@ -281,7 +306,7 @@ function initGame() {
     weapons: [null, null, null], currentWeapon: 0,
     ammoInv: { '9mm':0, 'shells':0, '5.56':0, '.308':0, 'flare':0 },
     alive: true, lastShot: 0, reloading: false, reloadStart: 0,
-    mag: [0,0,0], name: 'You', hasCrowbar: false, lastPunch: 0,
+    mag: [0,0,0], name: (document.getElementById('username-input').value.trim() || 'Player'), hasCrowbar: false, lastPunch: 0,
     grenadeCount: 0, lastGrenade: 0, lastMelee: 0,
     punchAnim: 0,
     dropping: true, dropTime: 0, dropX: 0, dropY: 0, dropAlt: 1,
@@ -395,6 +420,9 @@ function initGame() {
 
   // Allow clicking on canvas to jump during plane phase
   canvas.style.pointerEvents = 'auto';
+  // Re-add drop click handler (removed when player lands)
+  canvas.removeEventListener('click', handleDropClick);
+  canvas.addEventListener('click', handleDropClick);
 
   requestAnimationFrame(gameLoop);
 }
@@ -2286,8 +2314,9 @@ function renderDropPhase() {
   ctx.textAlign = 'left';
 
   // Minimap during drop
-  miniCtx.fillStyle = 'rgba(0,0,0,0.7)'; miniCtx.fillRect(0, 0, 160, 160);
-  const sc = 160 / MAP_SIZE;
+  const mW = miniCanvas.width, mH = miniCanvas.height;
+  miniCtx.fillStyle = 'rgba(0,0,0,0.7)'; miniCtx.fillRect(0, 0, mW, mH);
+  const sc = mW / MAP_SIZE;
   miniCtx.fillStyle = '#555';
   for (const b of buildings) miniCtx.fillRect(b.x * sc, b.y * sc, b.w * sc, b.h * sc);
   // Plane path
@@ -2634,68 +2663,98 @@ function getInnerBuilding() {
   return inner.length > 0 ? inner[Math.floor(Math.random() * inner.length)] : null;
 }
 
+function createQuestBuilding(label, color, w, h) {
+  const margin = MAP_SIZE * 0.3;
+  let bx, by, overlaps, attempts = 0;
+  do {
+    bx = margin + Math.random() * (MAP_SIZE - margin * 2 - w);
+    by = margin + Math.random() * (MAP_SIZE - margin * 2 - h);
+    overlaps = buildings.some(b =>
+      bx < b.x + b.w + 80 && bx + w + 80 > b.x &&
+      by < b.y + b.h + 80 && by + h + 80 > b.y
+    );
+    attempts++;
+  } while (overlaps && attempts < 100);
+  // Door on south wall (side 1), centered
+  const doorX = bx + Math.floor(w / 2) - TILE / 2;
+  const door = { x: doorX, y: by + h - 8, w: TILE, h: 10, side: 1, open: false };
+  const building = {
+    x: bx, y: by, w, h, color,
+    floorColor: `hsl(20,8%,22%)`,
+    roofColor: color,
+    wallThick: 6,
+    doors: [door],
+    windows: [],
+    openings: [door],
+    questLabel: label
+  };
+  buildings.push(building);
+  return building;
+}
+
 function initQuests() {
   quests = [];
   player.hasKeycard = false;
-  player.questInteracting = null; // which quest the player is currently interacting with
+  player.questInteracting = null;
   player.questProgress = 0;
 
-  // 1. Valve Quest — 4 valves around a central point
-  const valvePos = getInnerPos();
+  // 1. Valve Quest — Factory building with 4 valves inside
+  const factory = createQuestBuilding('FACTORY', '#5d4e37', 240, 200);
+  factory.isFactory = true;
   const valves = [];
+  const fcx = factory.x + factory.w / 2, fcy = factory.y + factory.h / 2;
   for (let i = 0; i < 4; i++) {
     const a = (i / 4) * Math.PI * 2 + (Math.random() - 0.5) * 0.3;
-    const d = 40 + Math.random() * 30;
-    valves.push({
-      x: valvePos.x + Math.cos(a) * d,
-      y: valvePos.y + Math.sin(a) * d,
-      activated: false
-    });
+    const d = 40 + Math.random() * 25;
+    valves.push({ x: fcx + Math.cos(a) * d, y: fcy + Math.sin(a) * d, activated: false });
   }
   quests.push({
     type: 'valves', name: 'Turn 4 Valves',
-    x: valvePos.x, y: valvePos.y,
+    x: fcx, y: fcy, buildingRef: factory,
     color: '#e74c3c', icon: '\u2699',
-    objects: valves,
-    holdTime: 2000, // 2s per valve
+    objects: valves, holdTime: 2000,
     completed: false, scoreBonus: 25
   });
 
-  // 2. Bank Drill Quest — drill a vault inside a building
-  const bankBuilding = getInnerBuilding();
-  if (bankBuilding) {
-    bankBuilding.isBank = true;
-    const vaultX = bankBuilding.x + bankBuilding.w / 2;
-    const vaultY = bankBuilding.y + bankBuilding.h / 2;
-    quests.push({
-      type: 'drill', name: 'Drill the Vault',
-      x: vaultX, y: vaultY,
-      buildingRef: bankBuilding,
-      color: '#f1c40f', icon: '\u{1F4B0}',
-      objects: [{ x: vaultX, y: vaultY, drilled: false }],
-      holdTime: 5000, // 5s hold
-      completed: false, scoreBonus: 35
-    });
-  }
+  // 2. Bank Drill Quest — Bank building with vault inside
+  const bank = createQuestBuilding('BANK', '#8b7355', 220, 220);
+  bank.isBank = true;
+  const vaultX = bank.x + bank.w / 2, vaultY = bank.y + bank.h / 2;
+  quests.push({
+    type: 'drill', name: 'Drill the Vault',
+    x: vaultX, y: vaultY, buildingRef: bank,
+    color: '#f1c40f', icon: '\u{1F4B0}',
+    objects: [{ x: vaultX, y: vaultY, drilled: false }],
+    holdTime: 5000, completed: false, scoreBonus: 35
+  });
 
-  // 3. Keycard Quest — find keycard, use at terminal
-  const keycardPos = getInnerPos();
-  // Terminal at a different inner location
-  let terminalPos = getInnerPos();
-  // Ensure they're at least 1500px apart
-  while (dist(keycardPos, terminalPos) < 1500) {
-    terminalPos = getInnerPos();
+  // 3. Keycard Quest — Secure Room with crowbar + 5 metal chests; keycard elsewhere
+  const secureRoom = createQuestBuilding('SECURE ROOM', '#2c3e50', 200, 180);
+  secureRoom.isSecureRoom = true;
+  // Spawn crowbar loot inside secure room
+  loot.push({
+    x: secureRoom.x + 40 + Math.random() * (secureRoom.w - 80),
+    y: secureRoom.y + 40 + Math.random() * (secureRoom.h - 80),
+    ...LOOT_TYPES.crowbar, lootKey: 'crowbar', picked: false
+  });
+  // Spawn 5 metal crates inside secure room
+  for (let i = 0; i < 5; i++) {
+    const mcx = secureRoom.x + 30 + (i % 3) * ((secureRoom.w - 60) / 2);
+    const mcy = secureRoom.y + 30 + Math.floor(i / 3) * (secureRoom.h - 60);
+    crates.push(createCrate(mcx, mcy, true, true));
   }
+  // Keycard at a different inner location
+  const keycardPos = getInnerPos();
+  const termX = secureRoom.x + secureRoom.w / 2, termY = secureRoom.y + secureRoom.h / 2;
   quests.push({
     type: 'keycard', name: 'Keycard Access',
-    x: terminalPos.x, y: terminalPos.y,
+    x: termX, y: termY, buildingRef: secureRoom,
     color: '#00d4ff', icon: '\u{1F4B3}',
     objects: [
       { x: keycardPos.x, y: keycardPos.y, type: 'card', pickedUp: false },
-      { x: terminalPos.x, y: terminalPos.y, type: 'terminal', activated: false }
+      { x: termX, y: termY, type: 'terminal', activated: false }
     ],
-    holdTime: 0, // instant
-    completed: false, scoreBonus: 30
+    holdTime: 0, completed: false, scoreBonus: 30
   });
 }
 
@@ -2985,20 +3044,22 @@ function renderQuestsMinimap(sc) {
 const VEHICLE_TYPES = {
   buggy: { name: 'Buggy', maxSpeed: 8, accel: 0.15, turnSpeed: 0.04, hp: 150, w: 36, h: 22, color: '#e67e22', brakeForce: 0.08 },
   truck: { name: 'Truck', maxSpeed: 5, accel: 0.08, turnSpeed: 0.025, hp: 300, w: 48, h: 28, color: '#7f8c8d', brakeForce: 0.06 },
-  atv:   { name: 'ATV',   maxSpeed: 10, accel: 0.2, turnSpeed: 0.055, hp: 100, w: 28, h: 18, color: '#2ecc71', brakeForce: 0.1 }
+  atv:   { name: 'ATV',   maxSpeed: 10, accel: 0.2, turnSpeed: 0.055, hp: 100, w: 28, h: 18, color: '#2ecc71', brakeForce: 0.1 },
+  tank:  { name: 'Tank',  maxSpeed: 3.5, accel: 0.05, turnSpeed: 0.018, hp: 600, w: 54, h: 34, color: '#556b2f', brakeForce: 0.04, canShoot: true, shootDamage: 80, shootRate: 2000, shootRange: 800, shootSpeed: 16 },
+  heli:  { name: 'Helicopter', maxSpeed: 12, accel: 0.25, turnSpeed: 0.06, hp: 200, w: 44, h: 26, color: '#4682b4', brakeForce: 0.12, isFlying: true }
 };
 
 function initVehicles() {
   vehicles = [];
   player.inVehicle = null;
 
-  const types = ['buggy', 'truck', 'atv'];
-  for (let i = 0; i < 10; i++) {
-    const typeKey = types[i % 3];
+  const types = ['buggy', 'truck', 'atv', 'buggy', 'truck', 'atv', 'tank', 'tank', 'heli', 'heli', 'atv', 'buggy', 'heli', 'tank'];
+  for (let i = 0; i < 14; i++) {
+    const typeKey = types[i];
     const vt = VEHICLE_TYPES[typeKey];
     // Spawn near roads or open areas
     const pos = getRandomOpenPos();
-    vehicles.push({
+    const veh = {
       x: pos.x, y: pos.y,
       angle: Math.random() * Math.PI * 2,
       speed: 0,
@@ -3012,8 +3073,25 @@ function initVehicles() {
       name: vt.name,
       type: typeKey,
       passenger: null,
-      destroyed: false
-    });
+      destroyed: false,
+      isFlying: !!vt.isFlying,
+      canShoot: !!vt.canShoot
+    };
+    // Tank extras
+    if (vt.canShoot) {
+      veh.turretAngle = 0;
+      veh.lastShot = 0;
+      veh.shootDamage = vt.shootDamage;
+      veh.shootRate = vt.shootRate;
+      veh.shootRange = vt.shootRange;
+      veh.shootSpeed = vt.shootSpeed;
+    }
+    // Helicopter extras
+    if (vt.isFlying) {
+      veh.rotorAngle = 0;
+      veh.altitude = 0; // 0=grounded, 1=flying
+    }
+    vehicles.push(veh);
   }
 }
 
@@ -3054,12 +3132,23 @@ function updateVehicles(dt) {
     v.speed *= 0.97;
     if (Math.abs(v.speed) < 0.05) v.speed = 0;
 
-    // Move vehicle
-    if (Math.abs(v.speed) > 0) {
+    // Helicopter rotor spin
+    if (v.isFlying && v.rotorAngle !== undefined) {
+      v.rotorAngle += 0.3;
+    }
+
+    // Move vehicle (helis move via game loop input, ground vehicles here)
+    if (Math.abs(v.speed) > 0 && !v.isFlying) {
       v.x += Math.cos(v.angle) * v.speed;
       v.y += Math.sin(v.angle) * v.speed;
+    }
 
-      // Building collision
+    // Map bounds for all
+    v.x = Math.max(v.w, Math.min(MAP_SIZE - v.w, v.x));
+    v.y = Math.max(v.h, Math.min(MAP_SIZE - v.h, v.y));
+
+    if (!v.isFlying && Math.abs(v.speed) > 0) {
+      // Building collision (ground only)
       for (const b of buildings) {
         if (v.x < b.x - v.w || v.x > b.x + b.w + v.w || v.y < b.y - v.h || v.y > b.y + b.h + v.h) continue;
         // Simple AABB overlap check
@@ -3100,10 +3189,6 @@ function updateVehicles(dt) {
           v.speed *= 0.6;
         }
       }
-
-      // Map bounds
-      v.x = Math.max(v.w, Math.min(MAP_SIZE - v.w, v.x));
-      v.y = Math.max(v.h, Math.min(MAP_SIZE - v.h, v.y));
     }
 
     // Run over bots
@@ -3186,17 +3271,121 @@ function renderVehicles(camX, camY) {
         vx: rng(-0.5, 0.5), vy: -0.5 - Math.random(),
         life: 30, maxLife: 30, color: '#555', r: 3
       });
+    } else if (v.type === 'tank') {
+      // ── Tank rendering ──
+      // Treads
+      ctx.fillStyle = '#333';
+      ctx.fillRect(-v.w / 2, -v.h / 2 - 3, v.w, 6);
+      ctx.fillRect(-v.w / 2, v.h / 2 - 3, v.w, 6);
+      // Tread pattern
+      ctx.strokeStyle = '#555'; ctx.lineWidth = 1;
+      for (let tx = -v.w / 2 + 3; tx < v.w / 2; tx += 6) {
+        ctx.beginPath(); ctx.moveTo(tx, -v.h / 2 - 3); ctx.lineTo(tx, -v.h / 2 + 3); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(tx, v.h / 2 - 3); ctx.lineTo(tx, v.h / 2 + 3); ctx.stroke();
+      }
+      // Hull
+      ctx.fillStyle = v.color;
+      ctx.fillRect(-v.w / 2 + 2, -v.h / 2 + 3, v.w - 4, v.h - 6);
+      ctx.strokeStyle = '#3a5a1f'; ctx.lineWidth = 2;
+      ctx.strokeRect(-v.w / 2 + 2, -v.h / 2 + 3, v.w - 4, v.h - 6);
+      // Front armor plate
+      ctx.fillStyle = '#4a6a2f';
+      ctx.fillRect(v.w / 2 - 8, -v.h / 2 + 5, 6, v.h - 10);
+      // Turret (rotates independently)
+      ctx.save();
+      ctx.rotate(-v.angle); // undo body rotation
+      ctx.rotate(v.turretAngle || 0); // apply turret rotation
+      // Turret base
+      ctx.fillStyle = '#4a6a2f';
+      ctx.beginPath(); ctx.arc(0, 0, 11, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#3a5a1f'; ctx.lineWidth = 2; ctx.stroke();
+      // Cannon barrel
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillRect(8, -3, 24, 6);
+      ctx.strokeStyle = '#222'; ctx.lineWidth = 1;
+      ctx.strokeRect(8, -3, 24, 6);
+      // Muzzle brake
+      ctx.fillStyle = '#444';
+      ctx.fillRect(30, -4, 4, 8);
+      ctx.restore();
+
+      // HP bar
+      if (v.hp < v.maxHp) {
+        ctx.rotate(-v.angle);
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(-25, -v.h / 2 - 14, 50, 5);
+        ctx.fillStyle = v.hp > v.maxHp * 0.5 ? '#2ecc71' : v.hp > v.maxHp * 0.25 ? '#f39c12' : '#e74c3c';
+        ctx.fillRect(-25, -v.h / 2 - 14, 50 * (v.hp / v.maxHp), 5);
+      }
+
+    } else if (v.type === 'heli') {
+      // ── Helicopter rendering ──
+      const alt = v.altitude || 0;
+      // Shadow on ground
+      if (alt > 0) {
+        ctx.rotate(-v.angle);
+        ctx.fillStyle = 'rgba(0,0,0,0.15)';
+        ctx.beginPath(); ctx.ellipse(0, alt * 30, v.w / 2 + 5, v.h / 2, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.rotate(v.angle);
+      }
+      // Body (slightly elevated when flying)
+      const yOff = -alt * 15;
+      ctx.save(); ctx.translate(0, yOff);
+      // Tail boom
+      ctx.fillStyle = '#3a6a9a';
+      ctx.fillRect(-v.w / 2 - 4, -2, 14, 4);
+      // Tail rotor
+      ctx.fillStyle = '#888';
+      ctx.save(); ctx.translate(-v.w / 2 - 4, 0);
+      ctx.rotate((v.rotorAngle || 0) * 2);
+      ctx.fillRect(-6, -1, 12, 2);
+      ctx.restore();
+      // Main body (oval)
+      ctx.fillStyle = v.color;
+      ctx.beginPath(); ctx.ellipse(4, 0, v.w / 2 - 6, v.h / 2, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#2a5a8a'; ctx.lineWidth = 2; ctx.stroke();
+      // Cockpit glass
+      ctx.fillStyle = 'rgba(150,220,255,0.5)';
+      ctx.beginPath(); ctx.ellipse(v.w / 2 - 10, 0, 8, v.h / 2 - 4, 0, 0, Math.PI * 2); ctx.fill();
+      // Skids
+      ctx.strokeStyle = '#555'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(-6, v.h / 2 + 2); ctx.lineTo(12, v.h / 2 + 2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-6, -v.h / 2 - 2); ctx.lineTo(12, -v.h / 2 - 2); ctx.stroke();
+      // Skid struts
+      ctx.beginPath(); ctx.moveTo(0, v.h / 2); ctx.lineTo(0, v.h / 2 + 2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, -v.h / 2); ctx.lineTo(0, -v.h / 2 - 2); ctx.stroke();
+      // Main rotor
+      ctx.save();
+      ctx.rotate(-v.angle);
+      ctx.rotate(v.rotorAngle || 0);
+      ctx.strokeStyle = '#aaa'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(-28, 0); ctx.lineTo(28, 0); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, -28); ctx.lineTo(0, 28); ctx.stroke();
+      // Rotor hub
+      ctx.fillStyle = '#666';
+      ctx.beginPath(); ctx.arc(0, 0, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+      ctx.restore(); // undo yOff
+
+      // HP bar
+      if (v.hp < v.maxHp) {
+        ctx.rotate(-v.angle);
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(-22, -v.h / 2 - 20 + yOff, 44, 5);
+        ctx.fillStyle = v.hp > v.maxHp * 0.5 ? '#2ecc71' : v.hp > v.maxHp * 0.25 ? '#f39c12' : '#e74c3c';
+        ctx.fillRect(-22, -v.h / 2 - 20 + yOff, 44 * (v.hp / v.maxHp), 5);
+      }
+
     } else {
-      // Vehicle body
+      // ── Standard vehicle rendering (Buggy/Truck/ATV) ──
       ctx.fillStyle = v.color;
       ctx.fillRect(-v.w / 2, -v.h / 2, v.w, v.h);
-      // Outline
       ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 2;
       ctx.strokeRect(-v.w / 2, -v.h / 2, v.w, v.h);
       // Windshield
       ctx.fillStyle = 'rgba(150,200,255,0.4)';
       ctx.fillRect(v.w / 2 - 8, -v.h / 2 + 3, 6, v.h - 6);
-      // Wheels (4 corners)
+      // Wheels
       ctx.fillStyle = '#222';
       const ww = 6, wh = 4;
       ctx.fillRect(-v.w / 2 - 1, -v.h / 2 - 2, ww, wh);
@@ -3208,9 +3397,9 @@ function renderVehicles(camX, camY) {
       ctx.fillRect(v.w / 2 - 2, -v.h / 2 + 2, 3, 3);
       ctx.fillRect(v.w / 2 - 2, v.h / 2 - 5, 3, 3);
 
-      // HP bar if damaged
+      // HP bar
       if (v.hp < v.maxHp) {
-        ctx.rotate(-v.angle); // unrotate for horizontal bar
+        ctx.rotate(-v.angle);
         ctx.fillStyle = 'rgba(0,0,0,0.5)';
         ctx.fillRect(-20, -v.h / 2 - 12, 40, 5);
         ctx.fillStyle = v.hp > v.maxHp * 0.5 ? '#2ecc71' : v.hp > v.maxHp * 0.25 ? '#f39c12' : '#e74c3c';
@@ -3377,28 +3566,88 @@ function gameLoop(time) {
     // ── Vehicle driving mode ──
     if (player.inVehicle) {
       const v = player.inVehicle;
-      // W = accelerate, S = brake/reverse
-      if (keys['w']) v.speed = Math.min(v.maxSpeed, v.speed + v.accel);
-      if (keys['s']) {
-        if (v.speed > 0.2) v.speed = Math.max(0, v.speed - v.brakeForce * 2); // brake
-        else v.speed = Math.max(-v.maxSpeed * 0.4, v.speed - v.accel * 0.5); // reverse
+
+      if (v.isFlying) {
+        // ── Helicopter: WASD moves in any direction, mouse aims ──
+        // Auto take off
+        if (v.altitude < 1) v.altitude = Math.min(1, v.altitude + 0.02);
+        let dx = 0, dy = 0;
+        if (keys['w']) dy -= 1; if (keys['s']) dy += 1;
+        if (keys['a']) dx -= 1; if (keys['d']) dx += 1;
+        if (dx || dy) {
+          const len = Math.sqrt(dx * dx + dy * dy);
+          v.speed = Math.min(v.maxSpeed, v.speed + v.accel);
+          const moveAngle = Math.atan2(dy, dx);
+          v.x += Math.cos(moveAngle) * v.speed;
+          v.y += Math.sin(moveAngle) * v.speed;
+        } else {
+          v.speed *= 0.92; // air friction
+        }
+        // Helicopter faces mouse direction
+        const hCamX = player.x - canvas.width / 2, hCamY = player.y - canvas.height / 2;
+        v.angle = Math.atan2(mouse.y + hCamY - v.y, mouse.x + hCamX - v.x);
+        // Map bounds
+        v.x = Math.max(30, Math.min(MAP_SIZE - 30, v.x));
+        v.y = Math.max(30, Math.min(MAP_SIZE - 30, v.y));
+      } else {
+        // ── Ground vehicles: WASD tank-style ──
+        if (keys['w']) v.speed = Math.min(v.maxSpeed, v.speed + v.accel);
+        if (keys['s']) {
+          if (v.speed > 0.2) v.speed = Math.max(0, v.speed - v.brakeForce * 2);
+          else v.speed = Math.max(-v.maxSpeed * 0.4, v.speed - v.accel * 0.5);
+        }
+        if (Math.abs(v.speed) > 0.3) {
+          if (keys['a']) v.angle -= v.turnSpeed * (v.speed > 0 ? 1 : -1);
+          if (keys['d']) v.angle += v.turnSpeed * (v.speed > 0 ? 1 : -1);
+        }
       }
-      // A/D = turn (only when moving)
-      if (Math.abs(v.speed) > 0.3) {
-        if (keys['a']) v.angle -= v.turnSpeed * (v.speed > 0 ? 1 : -1);
-        if (keys['d']) v.angle += v.turnSpeed * (v.speed > 0 ? 1 : -1);
+
+      // Tank turret aims at mouse
+      if (v.canShoot) {
+        const tCamX = player.x - canvas.width / 2, tCamY = player.y - canvas.height / 2;
+        v.turretAngle = Math.atan2(mouse.y + tCamY - v.y, mouse.x + tCamX - v.x);
+        // Click to fire cannon
+        if (mouse.down) {
+          const now = performance.now();
+          if (now - v.lastShot > v.shootRate) {
+            v.lastShot = now;
+            const a = v.turretAngle;
+            bullets.push({
+              x: v.x + Math.cos(a) * 35, y: v.y + Math.sin(a) * 35,
+              vx: Math.cos(a) * v.shootSpeed, vy: Math.sin(a) * v.shootSpeed,
+              damage: v.shootDamage, range: v.shootRange, dist: 0,
+              owner: player, color: '#ff4400'
+            });
+            // Muzzle flash particles
+            for (let i = 0; i < 8; i++) particles.push({
+              x: v.x + Math.cos(a) * 35, y: v.y + Math.sin(a) * 35,
+              vx: Math.cos(a + (Math.random() - .5) * 0.5) * (3 + Math.random() * 3),
+              vy: Math.sin(a + (Math.random() - .5) * 0.5) * (3 + Math.random() * 3),
+              life: 8, maxLife: 8, color: '#ff6600', r: 4
+            });
+          }
+        }
       }
-      // E = exit vehicle
+
+      // E = exit vehicle (helis must land first)
       if (keys['e']) {
         const eNow = performance.now();
         if (!player._lastVehicleToggle || eNow - player._lastVehicleToggle > 500) {
-          player._lastVehicleToggle = eNow;
-          exitVehicle(player);
+          if (v.isFlying && v.altitude > 0.1) {
+            // Start landing
+            v.altitude = Math.max(0, v.altitude - 0.05);
+            if (v.altitude <= 0.1) { v.altitude = 0; v.speed = 0; }
+          } else {
+            player._lastVehicleToggle = eNow;
+            if (v.isFlying) v.altitude = 0;
+            exitVehicle(player);
+          }
         }
       }
       // Camera follows vehicle
       const camX = player.x - canvas.width/2, camY = player.y - canvas.height/2;
-      player.angle = v.angle;
+      if (!v.isFlying) player.angle = v.angle;
+      else player.angle = v.angle;
       mouse.clicked = false;
     }
     // ── Normal on-foot mode ──
@@ -3469,9 +3718,10 @@ function gameLoop(time) {
       if(!player._lastDoorToggle || doorNow - player._lastDoorToggle > 300) {
         if(toggleNearbyDoor(player)) { player._lastDoorToggle = doorNow; }
         else if (!tryOpenAirdrop(player, true)) {
-          // Try enter vehicle
+          // Try enter vehicle (with separate 500ms cooldown)
           const nearVeh = getNearestVehicle(player, 50);
-          if (nearVeh) {
+          if (nearVeh && (!player._lastVehicleToggle || doorNow - player._lastVehicleToggle > 500)) {
+            player._lastVehicleToggle = doorNow;
             player._lastDoorToggle = doorNow;
             enterVehicle(player, nearVeh);
           }
@@ -3674,6 +3924,21 @@ function render() {
         ctx.beginPath(); ctx.moveTo(wx,w.y+2); ctx.lineTo(wx,w.y+w.h-2); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(w.x,w.y+w.h/2); ctx.lineTo(w.x+w.w,w.y+w.h/2); ctx.stroke();
       }
+    }
+
+    // Quest building labels on roof
+    if (b.questLabel) {
+      ctx.fillStyle = b.isFactory ? '#e67e22' : b.isBank ? '#f1c40f' : '#00d4ff';
+      ctx.font = 'bold 14px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText(b.questLabel, b.x + b.w / 2, b.y - 8);
+      ctx.textAlign = 'left';
+      // Distinctive border for quest buildings
+      ctx.strokeStyle = b.isFactory ? '#e67e22' : b.isBank ? '#f1c40f' : '#00d4ff';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([8, 4]);
+      ctx.strokeRect(b.x - 2, b.y - 2, b.w + 4, b.h + 4);
+      ctx.setLineDash([]);
     }
   }
 
@@ -4137,7 +4402,10 @@ function render() {
   if (player.inVehicle) {
     const v = player.inVehicle;
     const speedPct = Math.abs(v.speed) / v.maxSpeed * 100;
-    document.getElementById('weapon-info').textContent=`${v.name} | HP: ${Math.ceil(v.hp)}/${v.maxHp} | Speed: ${Math.round(speedPct)}% | [E] Exit`;
+    let vehExtra = '';
+    if (v.canShoot) vehExtra = ' | Click to Fire Cannon';
+    if (v.isFlying) vehExtra = ' | Flying' + (v.altitude < 1 ? ' (Taking Off)' : '');
+    document.getElementById('weapon-info').textContent=`${v.name} | HP: ${Math.ceil(v.hp)}/${v.maxHp} | Speed: ${Math.round(speedPct)}%${vehExtra} | [E] Exit`;
   } else {
     const cw=player.weapons[player.currentWeapon];
     const armStatus = player.bodyParts.arms.hits>=2?' [ARMS INJURED]':player.bodyParts.arms.hits===1?' [ARMS HURT]':'';
@@ -4302,9 +4570,10 @@ function render() {
   document.getElementById('kill-feed').innerHTML=feedHTML;
 
   // Minimap
+  const mW=miniCanvas.width, mH=miniCanvas.height;
   miniCtx.fillStyle='rgba(0,0,0,0.7)';
-  miniCtx.fillRect(0,0,160,160);
-  const sc=160/MAP_SIZE;
+  miniCtx.fillRect(0,0,mW,mH);
+  const sc=mW/MAP_SIZE;
   // Roads
   miniCtx.strokeStyle='#444'; miniCtx.lineWidth=1;
   for(const rd of roads){miniCtx.beginPath();miniCtx.moveTo(rd.x1*sc,rd.y1*sc);miniCtx.lineTo(rd.x2*sc,rd.y2*sc);miniCtx.stroke();}
@@ -4336,6 +4605,450 @@ function render() {
     if(ad.opened) continue;
     miniCtx.fillStyle = Math.sin(now/200) > 0 ? '#ff4500' : '#ffaa00';
     miniCtx.beginPath(); miniCtx.arc(ad.x*sc, ad.y*sc, 3, 0, Math.PI*2); miniCtx.fill();
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// ─── MULTIPLAYER CLIENT ───
+// ══════════════════════════════════════════════════════════════
+let mpMode = false;
+let mpSocket = null;
+let mpPlayerId = null;
+let mpBuildings = null;
+let mpEntities = [];
+let mpBullets = [];
+let mpVehicles = [];
+let mpZone = null;
+let mpRetreatZone = null;
+let mpKillFeed = [];
+let mpAliveCount = 0;
+let mpConnected = false;
+
+function startMultiplayer() {
+  const serverAddr = document.getElementById('server-input').value.trim() || 'localhost:3000';
+  const username = document.getElementById('username-input').value.trim() || 'Player';
+  const statusEl = document.getElementById('mp-status');
+  statusEl.style.display = 'block';
+  statusEl.textContent = 'Connecting to ' + serverAddr + '...';
+
+  const protocol = serverAddr.startsWith('wss://') || serverAddr.startsWith('ws://') ? '' : 'ws://';
+  try {
+    mpSocket = new WebSocket(protocol + serverAddr);
+  } catch(e) {
+    statusEl.textContent = 'Failed to connect: ' + e.message;
+    return;
+  }
+
+  mpSocket.onopen = () => {
+    statusEl.textContent = 'Connected! Joining game...';
+    mpSocket.send(JSON.stringify({ type: 'setName', name: username }));
+  };
+
+  mpSocket.onmessage = (evt) => {
+    try {
+      const msg = JSON.parse(evt.data);
+      if (msg.type === 'init') {
+        mpPlayerId = msg.playerId;
+        mpBuildings = msg.buildings;
+        mpRetreatZone = msg.retreatZone;
+        mpMode = true;
+        mpConnected = true;
+
+        // Hide start screen, start MP render loop
+        document.getElementById('start-screen').style.display = 'none';
+        document.getElementById('game-over').style.display = 'none';
+        statusEl.style.display = 'none';
+
+        // Set up input tracking
+        mpKeys = {};
+        mpMouseAngle = 0;
+        mpMouseDown = false;
+
+        // Start MP game loop
+        requestAnimationFrame(mpGameLoop);
+      }
+      else if (msg.type === 'state') {
+        mpEntities = msg.entities;
+        mpBullets = msg.bullets;
+        mpVehicles = msg.vehicles;
+        mpZone = msg.zone;
+        if (msg.retreatZone) mpRetreatZone = msg.retreatZone;
+        mpKillFeed = msg.killFeed || [];
+        mpAliveCount = msg.alive;
+
+        // Find our player
+        const me = mpEntities.find(e => e.id === mpPlayerId);
+        if (me) {
+          mpLocalPlayer = me;
+        }
+      }
+      else if (msg.type === 'error') {
+        statusEl.textContent = 'Error: ' + msg.msg;
+      }
+    } catch(e) { /* ignore parse errors */ }
+  };
+
+  mpSocket.onclose = () => {
+    mpConnected = false;
+    if (mpMode) {
+      // Show reconnect message
+      document.getElementById('game-over').style.display = 'flex';
+      document.getElementById('go-title').textContent = 'DISCONNECTED';
+      document.getElementById('go-stats').textContent = 'Connection to server lost.';
+    } else {
+      statusEl.textContent = 'Connection closed.';
+    }
+  };
+
+  mpSocket.onerror = () => {
+    statusEl.textContent = 'Connection error. Is the server running?';
+  };
+}
+
+let mpKeys = {};
+let mpMouseAngle = 0;
+let mpMouseDown = false;
+let mpLocalPlayer = null;
+let mpLastSend = 0;
+
+// MP-specific key listeners (won't conflict since we check mpMode)
+document.addEventListener('keydown', (e) => {
+  if (!mpMode) return;
+  mpKeys[e.key.toLowerCase()] = true;
+  // Weapon switching
+  if (e.key === '1') mpSocket.send(JSON.stringify({ type: 'switchWeapon', slot: 0 }));
+  if (e.key === '2') mpSocket.send(JSON.stringify({ type: 'switchWeapon', slot: 1 }));
+  if (e.key === '3') mpSocket.send(JSON.stringify({ type: 'switchWeapon', slot: 2 }));
+  if (e.key.toLowerCase() === 'r') mpSocket.send(JSON.stringify({ type: 'reload' }));
+});
+document.addEventListener('keyup', (e) => {
+  if (!mpMode) return;
+  mpKeys[e.key.toLowerCase()] = false;
+});
+canvas.addEventListener('mousemove', (e) => {
+  if (!mpMode || !mpLocalPlayer) return;
+  const camX = mpLocalPlayer.x - canvas.width / 2;
+  const camY = mpLocalPlayer.y - canvas.height / 2;
+  mpMouseAngle = Math.atan2(e.clientY + camY - mpLocalPlayer.y, e.clientX + camX - mpLocalPlayer.x);
+});
+canvas.addEventListener('mousedown', () => { if (mpMode) mpMouseDown = true; });
+canvas.addEventListener('mouseup', () => { if (mpMode) mpMouseDown = false; });
+
+function mpGameLoop(time) {
+  if (!mpMode) return;
+
+  // Send input to server (throttled to ~20/sec)
+  const now = performance.now();
+  if (now - mpLastSend > 50 && mpSocket && mpSocket.readyState === 1) {
+    mpLastSend = now;
+    mpSocket.send(JSON.stringify({
+      type: 'input',
+      keys: { w: !!mpKeys['w'], a: !!mpKeys['a'], s: !!mpKeys['s'], d: !!mpKeys['d'], e: !!mpKeys['e'] },
+      angle: mpMouseAngle,
+      shooting: mpMouseDown
+    }));
+  }
+
+  // Render
+  mpRender();
+  requestAnimationFrame(mpGameLoop);
+}
+
+function mpRender() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const me = mpLocalPlayer;
+  if (!me) return;
+
+  const camX = me.x - canvas.width / 2;
+  const camY = me.y - canvas.height / 2;
+
+  ctx.save();
+  ctx.translate(-camX, -camY);
+
+  // Ground
+  ctx.fillStyle = '#2d4a2e';
+  ctx.fillRect(0, 0, MAP_SIZE, MAP_SIZE);
+
+  // Grid
+  ctx.strokeStyle = 'rgba(255,255,255,0.02)';
+  ctx.lineWidth = 1;
+  const TILE = 40;
+  const gx1 = Math.max(0, Math.floor(camX / TILE) * TILE);
+  const gy1 = Math.max(0, Math.floor(camY / TILE) * TILE);
+  const gx2 = Math.min(MAP_SIZE, camX + canvas.width + TILE);
+  const gy2 = Math.min(MAP_SIZE, camY + canvas.height + TILE);
+  for (let x = gx1; x < gx2; x += TILE) { ctx.beginPath(); ctx.moveTo(x, gy1); ctx.lineTo(x, gy2); ctx.stroke(); }
+  for (let y = gy1; y < gy2; y += TILE) { ctx.beginPath(); ctx.moveTo(gx1, y); ctx.lineTo(gx2, y); ctx.stroke(); }
+
+  // Retreat zone
+  if (mpRetreatZone && mpRetreatZone.active) {
+    const pulse = 0.15 + Math.sin(performance.now() / 600) * 0.05;
+    ctx.beginPath();
+    ctx.arc(mpRetreatZone.x, mpRetreatZone.y, mpRetreatZone.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(46,204,113,${pulse})`;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(46,204,113,0.8)';
+    ctx.lineWidth = 4;
+    ctx.stroke();
+    ctx.fillStyle = '#2ecc71';
+    ctx.font = 'bold 16px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('RETREAT ZONE', mpRetreatZone.x, mpRetreatZone.y - mpRetreatZone.r - 15);
+    ctx.textAlign = 'left';
+  }
+
+  // Buildings
+  if (mpBuildings) {
+    for (const b of mpBuildings) {
+      if (b.x + b.w < camX || b.x > camX + canvas.width || b.y + b.h < camY || b.y > camY + canvas.height) continue;
+      ctx.fillStyle = b.color;
+      ctx.fillRect(b.x, b.y, b.w, b.h);
+      ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(b.x, b.y, b.w, b.h);
+      // Roof pattern
+      ctx.fillStyle = 'rgba(0,0,0,0.15)';
+      ctx.fillRect(b.x + 8, b.y + 8, b.w - 16, b.h - 16);
+    }
+  }
+
+  // Vehicles
+  for (const vh of mpVehicles) {
+    if (vh.destroyed) continue;
+    const vColors = { buggy: '#e67e22', truck: '#7f8c8d', atv: '#2ecc71' };
+    const vSizes = { buggy: [36, 22], truck: [48, 28], atv: [28, 18] };
+    const [vw, vhh] = vSizes[vh.type] || [36, 22];
+    const vc = vColors[vh.type] || '#888';
+
+    ctx.save();
+    ctx.translate(vh.x, vh.y);
+    ctx.rotate(vh.angle);
+    ctx.fillStyle = vc;
+    ctx.fillRect(-vw / 2, -vhh / 2, vw, vhh);
+    // Wheels
+    ctx.fillStyle = '#222';
+    ctx.fillRect(-vw / 2 - 2, -vhh / 2 - 3, 8, 6);
+    ctx.fillRect(-vw / 2 - 2, vhh / 2 - 3, 8, 6);
+    ctx.fillRect(vw / 2 - 6, -vhh / 2 - 3, 8, 6);
+    ctx.fillRect(vw / 2 - 6, vhh / 2 - 3, 8, 6);
+    ctx.restore();
+
+    // HP bar
+    if (vh.hp < vh.maxHp) {
+      const barW = vw + 10;
+      ctx.fillStyle = 'rgba(0,0,0,0.6)';
+      ctx.fillRect(vh.x - barW / 2, vh.y - vhh / 2 - 12, barW, 5);
+      ctx.fillStyle = vh.hp > vh.maxHp * 0.5 ? '#2ecc71' : '#e74c3c';
+      ctx.fillRect(vh.x - barW / 2, vh.y - vhh / 2 - 12, barW * (vh.hp / vh.maxHp), 5);
+    }
+  }
+
+  // Zone circle
+  if (mpZone) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(camX, camY, canvas.width, canvas.height);
+    ctx.arc(mpZone.x, mpZone.y, mpZone.r, 0, Math.PI * 2, true);
+    ctx.fillStyle = 'rgba(255,0,0,0.15)';
+    ctx.fill();
+    ctx.restore();
+    ctx.beginPath();
+    ctx.arc(mpZone.x, mpZone.y, mpZone.r, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(0,100,255,0.7)';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+  }
+
+  // Entities (players + bots)
+  for (const ent of mpEntities) {
+    if (!ent.alive) continue;
+    if (ent.inVehicle) continue; // hidden when in vehicle
+
+    // Visibility check
+    if (Math.abs(ent.x - me.x) > canvas.width && Math.abs(ent.y - me.y) > canvas.height) continue;
+
+    // Body
+    ctx.fillStyle = ent.id === mpPlayerId ? '#2ecc71' : (ent.isBot ? ent.color : '#3498db');
+    ctx.beginPath();
+    ctx.arc(ent.x, ent.y, ent.r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Gun line
+    if (ent.weapons && ent.weapons[ent.currentWeapon]) {
+      ctx.strokeStyle = '#555';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(ent.x, ent.y);
+      ctx.lineTo(ent.x + Math.cos(ent.angle) * 25, ent.y + Math.sin(ent.angle) * 25);
+      ctx.stroke();
+    }
+
+    // Name tag
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 11px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(ent.name, ent.x, ent.y - ent.r - 18);
+
+    // HP bar
+    if (ent.hp < 100) {
+      ctx.fillStyle = 'rgba(0,0,0,0.6)';
+      ctx.fillRect(ent.x - 18, ent.y - ent.r - 12, 36, 4);
+      ctx.fillStyle = ent.hp > 50 ? '#2ecc71' : ent.hp > 25 ? '#f39c12' : '#e74c3c';
+      ctx.fillRect(ent.x - 18, ent.y - ent.r - 12, 36 * (ent.hp / 100), 4);
+    }
+  }
+
+  // Bullets
+  ctx.fillStyle = '#ff0';
+  for (const b of mpBullets) {
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.restore();
+
+  // ── HUD ──
+  // HP bar
+  if (me) {
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(15, 15, 200, 20);
+    ctx.fillStyle = me.hp > 50 ? '#2ecc71' : me.hp > 25 ? '#f39c12' : '#e74c3c';
+    ctx.fillRect(15, 15, 200 * (me.hp / 100), 20);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 12px Arial';
+    ctx.textAlign = 'left';
+    ctx.fillText('HP: ' + Math.round(me.hp), 20, 30);
+
+    // Armor bar
+    if (me.armor > 0) {
+      ctx.fillStyle = 'rgba(0,0,0,0.6)';
+      ctx.fillRect(15, 38, 200, 14);
+      ctx.fillStyle = '#3498db';
+      ctx.fillRect(15, 38, 200 * (me.armor / 100), 14);
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 10px Arial';
+      ctx.fillText('Armor: ' + Math.round(me.armor), 20, 49);
+    }
+
+    // Weapon info
+    const wKey = me.weapons ? me.weapons[me.currentWeapon] : null;
+    if (wKey) {
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 14px Arial';
+      ctx.textAlign = 'right';
+      ctx.fillText(wKey.toUpperCase(), canvas.width - 20, 30);
+    }
+
+    // Alive count
+    ctx.fillStyle = '#f1c40f';
+    ctx.font = 'bold 22px Arial';
+    ctx.textAlign = 'right';
+    ctx.fillText(mpAliveCount + ' alive', canvas.width - 20, 60);
+
+    // Kills
+    ctx.fillStyle = '#e74c3c';
+    ctx.font = 'bold 16px Arial';
+    ctx.fillText('Kills: ' + (me.kills || 0), canvas.width - 20, 82);
+  }
+
+  // Kill feed
+  ctx.textAlign = 'right';
+  ctx.font = '13px Arial';
+  for (let i = 0; i < mpKillFeed.length; i++) {
+    const kf = mpKillFeed[i];
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(canvas.width - 250, 95 + i * 22, 240, 20);
+    ctx.fillStyle = '#fff';
+    ctx.fillText(kf.killer + ' killed ' + kf.victim, canvas.width - 15, 110 + i * 22);
+  }
+
+  // ── Minimap ──
+  const mW = miniCanvas.width, mH = miniCanvas.height;
+  const sc = mW / MAP_SIZE;
+  miniCtx.clearRect(0, 0, mW, mH);
+  miniCtx.fillStyle = '#1a2e1a';
+  miniCtx.fillRect(0, 0, mW, mH);
+
+  // Buildings on minimap
+  if (mpBuildings) {
+    miniCtx.fillStyle = 'rgba(150,120,80,0.6)';
+    for (const b of mpBuildings) {
+      miniCtx.fillRect(b.x * sc, b.y * sc, Math.max(1, b.w * sc), Math.max(1, b.h * sc));
+    }
+  }
+
+  // Zone on minimap
+  if (mpZone) {
+    miniCtx.beginPath();
+    miniCtx.arc(mpZone.x * sc, mpZone.y * sc, mpZone.r * sc, 0, Math.PI * 2);
+    miniCtx.strokeStyle = 'rgba(0,100,255,0.7)';
+    miniCtx.lineWidth = 1;
+    miniCtx.stroke();
+  }
+
+  // Retreat zone on minimap
+  if (mpRetreatZone && mpRetreatZone.active) {
+    miniCtx.beginPath();
+    miniCtx.arc(mpRetreatZone.x * sc, mpRetreatZone.y * sc, mpRetreatZone.r * sc, 0, Math.PI * 2);
+    miniCtx.strokeStyle = 'rgba(46,204,113,0.9)';
+    miniCtx.lineWidth = 1.5;
+    miniCtx.stroke();
+  }
+
+  // Player on minimap
+  if (me && me.alive) {
+    miniCtx.fillStyle = '#2ecc71';
+    miniCtx.beginPath();
+    miniCtx.arc(me.x * sc, me.y * sc, 3, 0, Math.PI * 2);
+    miniCtx.fill();
+  }
+
+  // Other players on minimap (nearby)
+  for (const ent of mpEntities) {
+    if (ent.id === mpPlayerId || !ent.alive) continue;
+    if (!ent.isBot) {
+      // Other players always shown on minimap
+      miniCtx.fillStyle = '#3498db';
+      miniCtx.beginPath();
+      miniCtx.arc(ent.x * sc, ent.y * sc, 2, 0, Math.PI * 2);
+      miniCtx.fill();
+    } else if (me) {
+      // Bots only if close
+      const dx = ent.x - me.x, dy = ent.y - me.y;
+      if (Math.sqrt(dx * dx + dy * dy) < 400) {
+        miniCtx.fillStyle = '#e74c3c';
+        miniCtx.beginPath();
+        miniCtx.arc(ent.x * sc, ent.y * sc, 1.5, 0, Math.PI * 2);
+        miniCtx.fill();
+      }
+    }
+  }
+
+  // Vehicles on minimap
+  for (const vh of mpVehicles) {
+    if (vh.destroyed) continue;
+    const vColors = { buggy: '#e67e22', truck: '#7f8c8d', atv: '#2ecc71' };
+    miniCtx.fillStyle = vColors[vh.type] || '#888';
+    miniCtx.fillRect(vh.x * sc - 1.5, vh.y * sc - 1.5, 3, 3);
+  }
+
+  // Death screen for MP
+  if (me && !me.alive) {
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#e74c3c';
+    ctx.font = 'bold 48px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('YOU DIED', canvas.width / 2, canvas.height / 2 - 30);
+    ctx.fillStyle = '#fff';
+    ctx.font = '20px Arial';
+    ctx.fillText('Kills: ' + (me.kills || 0), canvas.width / 2, canvas.height / 2 + 10);
+    ctx.fillText('Press F5 to play again', canvas.width / 2, canvas.height / 2 + 40);
   }
 }
 </script>
